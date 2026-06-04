@@ -21,6 +21,9 @@ and arrange them spatially.
   spawned in your workspace folder. TUI agents work.
 - **Many agents, one surface** — no more digging through terminal tabs;
   zoom out to watch all agents, zoom in to drive one.
+- **Live agent status** — auto-detects Claude Code / Codex per terminal and
+  shows the session title plus an animated idle / working / waiting badge
+  on the card title and minimap.
 - **Shift+Enter just works** — converted to `\` + Enter, so it inserts a
   newline in Claude Code instead of submitting.
 - **Terminal scroll** — the wheel scrolls output over a terminal card,

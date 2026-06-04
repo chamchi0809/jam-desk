@@ -11,6 +11,7 @@ import * as vscode from 'vscode'
 import * as path from 'path'
 import * as os from 'os'
 import * as fs from 'fs'
+import { exec } from 'child_process'
 import * as nodePty from 'node-pty'
 
 const DOCUMENT_KEY = 'jamDesk.document'
@@ -108,8 +109,75 @@ interface TerminalProc {
   paused: boolean
 }
 
+// ---- Coding-agent detection ---------------------------------------------------
+// Every AGENT_POLL_MS the process table is read once (`ps`); each live PTY's
+// descendant tree is searched for a Claude Code / Codex CLI. Changes are posted
+// to the webview as `terminal.agent` messages, which drive the panel-title and
+// minimap status UI. POSIX only — detection is silently disabled on Windows.
+
+const AGENT_POLL_MS = 2000
+
+type AgentKind = 'claude' | 'codex'
+
+/** Classify a process command line as an agent CLI. Only the leading tokens are
+ * inspected ("claude --resume", "node …/claude-code/cli.js", "bun x codex") so
+ * arbitrary argument text cannot false-positive. */
+function classifyAgentCommand(command: string): AgentKind | null {
+  for (const raw of command.trim().split(/\s+/).slice(0, 3)) {
+    const tok = raw.toLowerCase()
+    const base = path.basename(tok)
+    if (base === 'claude' || base === 'claude.js' || tok.includes('claude-code')) return 'claude'
+    if (base === 'codex' || base === 'codex.js' || base.startsWith('codex-')) return 'codex'
+  }
+  return null
+}
+
+type ProcessTree = Map<number, Array<{ pid: number; command: string }>>
+
+/** One `ps` pass → children-by-parent-pid map. Null when `ps` is unavailable. */
+function readProcessTree(): Promise<ProcessTree | null> {
+  return new Promise((resolve) => {
+    exec('ps -axo pid=,ppid=,command=', { maxBuffer: 10 * 1024 * 1024 }, (err, stdout) => {
+      if (err || typeof stdout !== 'string') return resolve(null)
+      const byParent: ProcessTree = new Map()
+      for (const line of stdout.split('\n')) {
+        const m = /^\s*(\d+)\s+(\d+)\s+(.+)$/.exec(line)
+        if (!m) continue
+        const entry = { pid: Number(m[1]), command: m[3] }
+        const ppid = Number(m[2])
+        const siblings = byParent.get(ppid)
+        if (siblings) siblings.push(entry)
+        else byParent.set(ppid, [entry])
+      }
+      resolve(byParent)
+    })
+  })
+}
+
+/** Breadth-first search of a PTY's descendants for an agent CLI, so the
+ * shallowest match wins (the agent itself, not subshells it spawns). */
+function findAgent(tree: ProcessTree, rootPid: number): AgentKind | null {
+  const queue = [rootPid]
+  const seen = new Set<number>()
+  while (queue.length > 0) {
+    const pid = queue.shift()!
+    if (seen.has(pid)) continue
+    seen.add(pid)
+    for (const child of tree.get(pid) ?? []) {
+      const kind = classifyAgentCommand(child.command)
+      if (kind) return kind
+      queue.push(child.pid)
+    }
+  }
+  return null
+}
+
 class TerminalManager {
   private readonly procs = new Map<string, TerminalProc>()
+  private agentTimer: ReturnType<typeof setInterval> | null = null
+  private agentScanInFlight = false
+  /** Last agent posted per terminal id, so only changes are messaged. */
+  private readonly lastAgents = new Map<string, AgentKind | null>()
 
   constructor(private readonly post: (msg: unknown) => void) {}
 
@@ -146,6 +214,7 @@ class TerminalManager {
 
     const entry: TerminalProc = { proc, unacked: 0, paused: false }
     this.procs.set(id, entry)
+    this.ensureAgentPolling()
 
     proc.onData((data) => {
       // Output from a superseded PTY (killed inside a create→recreate) must not
@@ -215,6 +284,8 @@ class TerminalManager {
   }
 
   disposeAll(): void {
+    this.stopAgentPolling()
+    this.lastAgents.clear()
     for (const entry of this.procs.values()) {
       try {
         entry.proc.kill()
@@ -223,6 +294,57 @@ class TerminalManager {
       }
     }
     this.procs.clear()
+  }
+
+  // ---- Coding-agent polling --------------------------------------------------
+
+  private ensureAgentPolling(): void {
+    // `ps`-based; Windows has no cheap equivalent here, so the feature is off.
+    if (this.agentTimer || process.platform === 'win32') return
+    this.agentTimer = setInterval(() => void this.pollAgents(), AGENT_POLL_MS)
+  }
+
+  private stopAgentPolling(): void {
+    if (this.agentTimer) {
+      clearInterval(this.agentTimer)
+      this.agentTimer = null
+    }
+  }
+
+  private async pollAgents(): Promise<void> {
+    if (this.agentScanInFlight) return
+    if (this.procs.size === 0) {
+      // Flush "agent gone" for terminals whose PTY exited, then go idle.
+      for (const [id, agent] of this.lastAgents) {
+        if (agent) this.post({ type: 'terminal.agent', id, agent: null })
+      }
+      this.lastAgents.clear()
+      this.stopAgentPolling()
+      return
+    }
+    this.agentScanInFlight = true
+    try {
+      const tree = await readProcessTree()
+      if (!tree) return
+      for (const [id, entry] of this.procs) {
+        const agent = findAgent(tree, entry.proc.pid)
+        if ((this.lastAgents.get(id) ?? null) !== agent) {
+          this.post({ type: 'terminal.agent', id, agent })
+        }
+        this.lastAgents.set(id, agent)
+      }
+      // PTYs that exited since the last pass: report their agent as gone.
+      for (const id of [...this.lastAgents.keys()]) {
+        if (!this.procs.has(id)) {
+          if (this.lastAgents.get(id)) this.post({ type: 'terminal.agent', id, agent: null })
+          this.lastAgents.delete(id)
+        }
+      }
+    } catch {
+      /* scan failed — retry on the next tick */
+    } finally {
+      this.agentScanInFlight = false
+    }
   }
 
   private resolveCwd(cwd?: string): string {

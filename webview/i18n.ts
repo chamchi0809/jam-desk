@@ -39,6 +39,10 @@ const en = {
   terminalUnavailable: 'Terminal backend is unavailable.',
   open: 'Open',
   processExited: '[Process exited (code {0})]',
+  // Coding-agent status (badge tooltip)
+  agentIdle: 'Idle',
+  agentWorking: 'Running a task…',
+  agentWaiting: 'Waiting for your input',
   // Minimap
   minimapResize: 'Drag to resize minimap',
   minimapMove: 'Drag to move minimap',
@@ -78,6 +82,9 @@ const ko: typeof en = {
   terminalUnavailable: '터미널 백엔드를 사용할 수 없습니다.',
   open: '열기',
   processExited: '[프로세스가 종료되었습니다 (코드 {0})]',
+  agentIdle: '대기',
+  agentWorking: '작업 실행 중…',
+  agentWaiting: '사용자 입력 대기',
   minimapResize: '드래그하여 미니맵 크기 조절',
   minimapMove: '드래그하여 미니맵 이동',
   defaultNote: '메모',

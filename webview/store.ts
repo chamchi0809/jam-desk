@@ -28,6 +28,9 @@ import type {
   CanvasDocument,
   CanvasTool,
   SnapGuides,
+  AgentKind,
+  AgentActivity,
+  TerminalAgentState,
 } from './types'
 import { viewToCanvas as viewToCanvasCoords } from './coordinates'
 import { findFreePosition, defaultSize, autoLayoutAll } from './layout'
@@ -56,6 +59,9 @@ export interface CanvasData {
   dropTargetRegionId: string | null
   /** Active tool (select | hand). Pan-everywhere with the hand tool. */
   tool: CanvasTool
+  /** Per-terminal coding-agent status (Claude Code / Codex). Ephemeral —
+   *  excluded from toDocument() and reset on load. */
+  agents: Record<CanvasNodeId, TerminalAgentState>
   history: CanvasHistoryEntry[]
   future: CanvasHistoryEntry[]
 }
@@ -127,6 +133,7 @@ export class CanvasStore {
       selectedRegionIds: new Set<string>(),
       dropTargetRegionId: null,
       tool: 'select',
+      agents: {},
       history: [],
       future: [],
     }
@@ -281,7 +288,44 @@ export class CanvasStore {
 
   finalizeRemoveNode(nodeId: CanvasNodeId): void {
     const { [nodeId]: _omit, ...rest } = this.data.nodes
-    this.set({ nodes: rest })
+    const partial: Partial<CanvasData> = { nodes: rest }
+    if (this.data.agents[nodeId]) {
+      const { [nodeId]: _agent, ...agentsRest } = this.data.agents
+      partial.agents = agentsRest
+    }
+    this.set(partial)
+  }
+
+  // ---- Terminal agent status (ephemeral) -------------------------------------
+
+  /** Merge a partial agent-status update for a terminal node. `agent` comes
+   * from the host's PTY process scan; `activity` / `oscTitle` from the node's
+   * xterm. No-op patches (nothing actually changed) do not notify. */
+  updateTerminalAgent(
+    id: CanvasNodeId,
+    patch: { agent?: AgentKind | null; activity?: AgentActivity; oscTitle?: string },
+  ): void {
+    const state = this.data
+    if (!state.nodes[id]) return
+    const prev = state.agents[id] ?? { agent: null, activity: 'idle' as AgentActivity }
+    let next = prev
+    if (patch.agent !== undefined && patch.agent !== next.agent) {
+      next = {
+        ...next,
+        agent: patch.agent,
+        agentSince: patch.agent ? Date.now() : undefined,
+        // A vanished agent leaves no meaningful activity behind.
+        ...(patch.agent ? {} : { activity: 'idle' as AgentActivity }),
+      }
+    }
+    if (patch.activity !== undefined && patch.activity !== next.activity) {
+      next = { ...next, activity: patch.activity }
+    }
+    if (patch.oscTitle !== undefined && patch.oscTitle !== next.oscTitle) {
+      next = { ...next, oscTitle: patch.oscTitle, oscTitleAt: Date.now() }
+    }
+    if (next === prev) return
+    this.set({ agents: { ...state.agents, [id]: next } })
   }
 
   setNodeAnimationState(nodeId: CanvasNodeId, animationState: 'entering' | 'exiting' | 'idle'): void {
@@ -1141,6 +1185,7 @@ export class CanvasStore {
       selectedNodeIds: new Set<string>(),
       selectedRegionIds: new Set<string>(),
       snapGuides: { lines: [] },
+      agents: {},
       history: [],
       future: [],
     })
@@ -1175,6 +1220,7 @@ export class CanvasStore {
       selectedNodeIds: new Set<string>(),
       selectedRegionIds: new Set<string>(),
       snapGuides: { lines: [] },
+      agents: {},
     })
   }
 }

@@ -37,6 +37,7 @@ type HostMessage =
   | { type: 'command'; command: string }
   | { type: 'terminal.data'; id: string; data: string }
   | { type: 'terminal.exit'; id: string; exitCode: number }
+  | { type: 'terminal.agent'; id: string; agent: 'claude' | 'codex' | null }
 
 interface TerminalHandlers {
   onData: (data: string) => void
@@ -192,6 +193,11 @@ export class Persistence {
       }
       case 'terminal.exit': {
         this.terminalHandlers.get(msg.id)?.onExit(msg.exitCode)
+        break
+      }
+      case 'terminal.agent': {
+        // Host process scan saw a coding agent appear/vanish in this PTY.
+        this.store.updateTerminalAgent(msg.id, { agent: msg.agent })
         break
       }
     }

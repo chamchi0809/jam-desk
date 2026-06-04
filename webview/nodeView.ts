@@ -16,7 +16,8 @@
 // =============================================================================
 
 import type { CanvasStore, CanvasData } from './store'
-import type { CanvasNodeState, CanvasRegion } from './types'
+import type { CanvasNodeState, CanvasRegion, AgentActivity, TerminalAgentState } from './types'
+import { AGENT_ACTIVITY_META, AGENT_DISPLAY_NAMES, agentDisplayTitle } from './types'
 import { detectEdge, getCursorForEdge } from './resizeEdge'
 import {
   beginNodeDrag,
@@ -29,6 +30,7 @@ import { TerminalController } from './terminalView'
 import type { TerminalBridge } from './terminalView'
 import { icons } from './icons'
 import { t } from './i18n'
+import type { MessageKey } from './i18n'
 
 export interface CanvasViewHooks {
   /** Open a workspace file (file-card "open" / double-click). */
@@ -51,6 +53,9 @@ interface NodeElements {
   filePathEl?: HTMLSpanElement
   // terminal
   terminal?: TerminalController
+  agentBadge?: HTMLSpanElement
+  agentRunner?: HTMLSpanElement
+  agentLabel?: HTMLSpanElement
   animState?: string
   // Cancellable finalize timer for the exit animation (independent of any opacity
   // transition, so it fires even when opacity stays 0→0). Cleared if the node is
@@ -66,6 +71,13 @@ interface NodeElements {
  * Matches the upstream IDE's setTimeout(200) finalize and comfortably outlasts the 0.18s
  * CSS opacity/transform transition. */
 const EXIT_ANIM_MS = 200
+
+/** Tooltip label key per agent activity (badge hover). */
+const AGENT_ACTIVITY_LABEL: Record<AgentActivity, MessageKey> = {
+  idle: 'agentIdle',
+  working: 'agentWorking',
+  waiting: 'agentWaiting',
+}
 
 interface RegionElements {
   container: HTMLDivElement
@@ -111,7 +123,8 @@ export class CanvasView {
       if (
         next.nodes !== prev.nodes ||
         next.focusedNodeId !== prev.focusedNodeId ||
-        next.selectedNodeIds !== prev.selectedNodeIds
+        next.selectedNodeIds !== prev.selectedNodeIds ||
+        next.agents !== prev.agents
       ) {
         this.reconcileNodes(next)
       }
@@ -242,11 +255,29 @@ export class CanvasView {
       el.textarea = ta
     } else if (node.kind === 'terminal') {
       container.classList.add('is-terminal')
+      // Agent status badge (animated RunCat runner) — hidden via CSS until a
+      // coding agent (Claude Code / Codex) is detected in this terminal's PTY.
+      const badge = document.createElement('span')
+      badge.className = 'cnode-agent'
+      const runner = document.createElement('span')
+      runner.className = 'cnode-agent-runner'
+      const label = document.createElement('span')
+      label.className = 'cnode-agent-label'
+      badge.appendChild(runner)
+      badge.appendChild(label)
+      titlebar.insertBefore(badge, titleEl)
+      el.agentBadge = badge
+      el.agentRunner = runner
+      el.agentLabel = label
+
       const host = document.createElement('div')
       host.className = 'cnode-terminal'
       content.appendChild(host)
       if (this.hooks.terminals) {
-        const ctrl = new TerminalController(node.id, this.hooks.terminals, node.cwd)
+        const ctrl = new TerminalController(node.id, this.hooks.terminals, node.cwd, {
+          onTitleChange: (title) => this.store.updateTerminalAgent(node.id, { oscTitle: title }),
+          onActivity: (activity) => this.store.updateTerminalAgent(node.id, { activity }),
+        })
         el.terminal = ctrl
         // Mount after this element is attached + sized so the first fit() is correct.
         requestAnimationFrame(() => ctrl.mount(host))
@@ -376,14 +407,17 @@ export class CanvasView {
     c.style.height = `${node.size.height}px`
     c.style.zIndex = String(1000 + node.zOrder)
 
-    // Title + content.
+    // Title + content. A terminal hosting a coding agent shows the agent's
+    // session title (or its name) instead of the stored node title.
     const fallbackTitle =
       node.kind === 'note'
         ? t('defaultNote')
         : node.kind === 'terminal'
           ? t('defaultTerminal')
           : t('defaultFile')
-    el.titleEl.textContent = node.title || fallbackTitle
+    const agentRec = node.kind === 'terminal' ? s.agents[node.id] : undefined
+    el.titleEl.textContent = agentDisplayTitle(agentRec) ?? (node.title || fallbackTitle)
+    if (node.kind === 'terminal') this.syncAgentChrome(el, agentRec)
 
     if (node.kind === 'note' && el.textarea) {
       const next = node.text ?? ''
@@ -458,6 +492,36 @@ export class CanvasView {
         }, EXIT_ANIM_MS)
       }
       el.animState = anim
+    }
+  }
+
+  /** Apply coding-agent status chrome to a terminal node: state classes, the
+   * accent color variable, and the animated runner sprite. */
+  private syncAgentChrome(el: NodeElements, rec: TerminalAgentState | undefined): void {
+    const c = el.container
+    const agent = rec?.agent ?? null
+    // Keep the controller's scanner in sync (defers internally — no sync set()).
+    el.terminal?.setAgentPresent(!!agent)
+    c.classList.toggle('has-agent', !!agent)
+    const activity = agent && rec ? rec.activity : null
+    c.classList.toggle('agent-idle', activity === 'idle')
+    c.classList.toggle('agent-working', activity === 'working')
+    c.classList.toggle('agent-waiting', activity === 'waiting')
+    if (agent && rec) {
+      const meta = AGENT_ACTIVITY_META[rec.activity]
+      c.style.setProperty('--agent-color', meta.color)
+      if (el.agentRunner) {
+        const cls = `cnode-agent-runner runner-${meta.runner}`
+        if (el.agentRunner.className !== cls) el.agentRunner.className = cls
+      }
+      if (el.agentLabel && el.agentLabel.textContent !== meta.label) {
+        el.agentLabel.textContent = meta.label
+      }
+      if (el.agentBadge) {
+        el.agentBadge.title = `${AGENT_DISPLAY_NAMES[agent]} — ${t(AGENT_ACTIVITY_LABEL[rec.activity])}`
+      }
+    } else {
+      c.style.removeProperty('--agent-color')
     }
   }
 

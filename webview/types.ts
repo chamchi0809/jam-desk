@@ -63,6 +63,99 @@ export function isMaximized(node: CanvasNodeState): boolean {
   return node.preMaximizeOrigin != null
 }
 
+// ---- Coding-agent status (terminal nodes) ------------------------------------
+
+/** Coding-agent CLIs recognized inside a terminal's PTY process tree. */
+export type AgentKind = 'claude' | 'codex'
+
+/** What the agent is doing, derived from its TUI screen contents. */
+export type AgentActivity = 'idle' | 'working' | 'waiting'
+
+/** Ephemeral per-terminal agent state — runtime only, never persisted. */
+export interface TerminalAgentState {
+  agent: AgentKind | null
+  activity: AgentActivity
+  /** Last OSC 0/2 title from the PTY, state prefixes already stripped — agents
+   * publish their session title here (see cleanAgentTitle). */
+  oscTitle?: string
+  oscTitleAt?: number
+  /** When the current agent was first detected (epoch ms). */
+  agentSince?: number
+}
+
+// ---- Agent title signals ------------------------------------------------------
+// Both agent TUIs encode their state into the OSC 0 terminal title, which makes
+// the title a structured signal rather than a guess (verified against Claude
+// Code 2.1.162's bundle and openai/codex's status_surfaces.rs):
+//  - Claude Code:  "⠂ <topic>" / "⠐ <topic>" while a task runs (frames swap
+//    ~960ms), "✳ <topic>" otherwise. Waiting-for-permission is NOT title-coded —
+//    that still needs the screen-scan fallback.
+//  - Codex:        "⠋ <project>" (10 braille frames, 100ms) while working,
+//    "[ ! ] Action Required | <project>" (blinking "[ . ]") while blocked on
+//    user input, and the bare "<project>" when idle.
+
+/** Leading braille spinner frame — either agent is actively working. */
+const TITLE_WORKING_RE = /^[⠀-⣿]\s/
+/** Codex's blocked-on-input title ("[ ! ] Action Required | project"). */
+const TITLE_WAITING_RE = /^\[\s*[!.]\s*\]\s*action required\s*(\|\s*)?/i
+
+/** Read the activity state an agent encoded into its OSC title, if any. */
+export function classifyAgentTitle(raw: string): 'working' | 'waiting' | null {
+  const s = raw.trimStart()
+  if (TITLE_WORKING_RE.test(s)) return 'working'
+  if (TITLE_WAITING_RE.test(s)) return 'waiting'
+  return null
+}
+
+/** Strip the per-state prefixes off an OSC title, leaving the session/topic
+ * text. The result is stable across spinner frames (Codex rewrites the title
+ * every 100ms while working), so storing the cleaned title dedupes upstream. */
+export function cleanAgentTitle(raw: string): string {
+  return raw
+    .replace(TITLE_WAITING_RE, '')
+    .replace(/^[\s⠀-⣿✳✶✻✽·∗*]+/, '')
+    .trim()
+}
+
+export const AGENT_DISPLAY_NAMES: Record<AgentKind, string> = {
+  claude: 'Claude Code',
+  codex: 'Codex',
+}
+
+/** Per-activity accent color, RunCat365 runner sprite (media/runners/), and the
+ *  short English badge label (matches Claude Code's own status wording):
+ *  idle → horse (blue), working → cat (amber), waiting → parrot (pink). */
+export const AGENT_ACTIVITY_META: Record<
+  AgentActivity,
+  { color: string; runner: 'cat' | 'horse' | 'parrot'; label: string }
+> = {
+  idle: { color: '#6c9ef8', runner: 'horse', label: 'Idle' },
+  working: { color: '#f0a35e', runner: 'cat', label: 'Working…' },
+  waiting: { color: '#ef5e88', runner: 'parrot', label: 'Waiting' },
+}
+
+/** A shell title set long before the agent attached belongs to the shell, not
+ * the agent; only titles from (just before or) during the session are trusted. */
+const AGENT_TITLE_GRACE_MS = 8000
+
+/** Panel title for a terminal hosting an agent: the agent's session title when
+ * known, else the agent's display name. Null when no agent is attached. */
+export function agentDisplayTitle(rec: TerminalAgentState | undefined): string | null {
+  if (!rec?.agent) return null
+  const raw = rec.oscTitle?.trim()
+  if (
+    raw &&
+    rec.oscTitleAt != null &&
+    rec.agentSince != null &&
+    rec.oscTitleAt >= rec.agentSince - AGENT_TITLE_GRACE_MS
+  ) {
+    // Stored titles are already cleaned; re-clean defensively (idempotent).
+    const cleaned = cleanAgentTitle(raw)
+    if (cleaned) return cleaned
+  }
+  return AGENT_DISPLAY_NAMES[rec.agent]
+}
+
 // ---- Region (group container, ported from the upstream IDE) -----------------------------
 
 export interface CanvasRegion {

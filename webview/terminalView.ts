@@ -19,6 +19,8 @@ import { FitAddon } from '@xterm/addon-fit'
 // inline <style> through `style-src 'unsafe-inline'`).
 import xtermCss from '@xterm/xterm/css/xterm.css'
 import { t } from './i18n'
+import type { AgentActivity } from './types'
+import { classifyAgentTitle, cleanAgentTitle } from './types'
 
 /** The webview side of the terminal protocol; implemented by Persistence. */
 export interface TerminalBridge {
@@ -38,6 +40,53 @@ export interface TerminalBridge {
     handlers: { onData: (data: string) => void; onExit: (code: number) => void },
   ): () => void
 }
+
+/** Optional callbacks reporting agent-relevant terminal events upward. */
+export interface TerminalControllerHooks {
+  /** OSC 0/2 title set by the PTY, agent state prefixes stripped (agents
+   * publish their session title here). */
+  onTitleChange?: (title: string) => void
+  /** Derived coding-agent activity changed (only fires while an agent is attached). */
+  onActivity?: (activity: AgentActivity) => void
+}
+
+// ---- Coding-agent activity signals --------------------------------------------
+// Activity is fused from layered signals, most-structured first:
+//
+//  1. OSC 0 title (classifyAgentTitle): both agents encode working — and Codex
+//     also blocked-on-input — into the terminal title they already set.
+//  2. OSC 9: ConEmu/iTerm2 progress ("4;<state>;…", Claude Code emits it when
+//     the terminal advertises support) and iTerm2-style notification messages
+//     (Codex `tui.notifications` — approval / plan prompts mean blocked).
+//  3. Screen scan (fallback, throttled): the visible buffer is searched for
+//     marker text. This is the only source for Claude Code's permission
+//     dialogs, which are not title-coded; Codex's "esc to interrupt" footer is
+//     pinned by a test in openai/codex, so the strings are stabler than they
+//     look.
+//
+// Fusion: waiting beats working beats idle — a permission dialog can pop while
+// the title still says "working", and the user being asked something is the
+// state that matters.
+
+const AGENT_WORKING_RE = /esc to interrupt/i
+
+const AGENT_WAITING_RES: RegExp[] = [
+  /❯\s*\d+\./, // Claude Code option selector ("❯ 1. Yes")
+  /[❯›]\s*(yes|approve|allow)\b/i, // Codex-style approval selector
+  /\(y\/n\)/i,
+  /│\s*do you (want|trust)/i, // boxed Claude Code permission prompts
+  /│\s*would you like/i,
+  /press enter to continue/i,
+  /waiting for (your )?(input|approval|confirmation)/i,
+  /allow command\?/i,
+]
+
+/** OSC 9 notification payloads that mean the agent is blocked on user input
+ * (Codex chatwidget/notifications.rs message templates). */
+const OSC9_WAITING_RE = /^(approval requested|codex wants to edit|plan mode prompt)/i
+
+/** Trailing scan delay after PTY output settles (also the max scan rate). */
+const ACTIVITY_SCAN_MS = 250
 
 let cssInjected = false
 function ensureXtermCss(): void {
@@ -93,11 +142,27 @@ export class TerminalController {
   private mounted = false
   /** focus() requested before mount() ran; applied once the term is open. */
   private wantFocus = false
+  /** Host detected a coding agent in this PTY — enables activity scanning. */
+  private agentPresent = false
+  private scanTimer: number | null = null
+  private lastReportedActivity: AgentActivity | null = null
+  // Layered activity signals (see "Coding-agent activity signals" above).
+  /** State the agent encoded into its OSC title. Tracked even before the host's
+   * process scan lands, since agents write their title within the poll gap. */
+  private titleState: 'working' | 'waiting' | null = null
+  /** Latched by an OSC 9 approval/plan notification; cleared by a keystroke
+   * (the user answered), a turn-complete notification, or the title going busy. */
+  private osc9Waiting = false
+  /** OSC 9;4 progress state — a task is running (Claude Code progress report). */
+  private progressWorking = false
+  /** Last screen-scan verdict; null until the first scan after attach. */
+  private scanState: AgentActivity | null = null
 
   constructor(
     private id: string,
     private bridge: TerminalBridge,
     private cwd?: string,
+    private hooks: TerminalControllerHooks = {},
   ) {
     ensureXtermCss()
     this.term = new Terminal({
@@ -112,6 +177,29 @@ export class TerminalController {
     })
     this.fit = new FitAddon()
     this.term.loadAddon(this.fit)
+
+    // OSC 0/2 window-title sequences. Always classified (so a state set just
+    // before agent detection lands is not lost) and reported cleaned — the
+    // cleaned text is stable across spinner frames, so the upstream store
+    // dedupes Codex's 100ms title rewrites for free.
+    this.term.onTitleChange((title) => {
+      if (this.disposed) return
+      const state = classifyAgentTitle(title)
+      if (state !== this.titleState) {
+        this.titleState = state
+        // The agent resumed working — any approval it was blocked on is gone.
+        if (state === 'working') this.osc9Waiting = false
+        this.recomputeActivity()
+        this.scheduleActivityScan()
+      }
+      this.hooks.onTitleChange?.(cleanAgentTitle(title))
+    })
+
+    // OSC 9 — two protocols share the slot (see signal notes above).
+    this.term.parser.registerOscHandler(9, (data) => {
+      this.handleOsc9(data)
+      return true
+    })
 
     // xterm.js sends Shift+Enter as a plain CR, which TUIs like Claude Code
     // treat as submit. Send backslash+CR (line continuation) instead so
@@ -148,6 +236,7 @@ export class TerminalController {
         this.term.write(data, () => {
           if (!this.disposed) this.bridge.ack(this.id, data.length)
         })
+        this.scheduleActivityScan()
       },
       onExit: (code) => {
         if (this.disposed) return
@@ -160,7 +249,14 @@ export class TerminalController {
     this.bridge.create(this.id, cols, rows, this.cwd)
 
     this.term.onData((data) => {
-      if (!this.disposed) this.bridge.input(this.id, data)
+      if (this.disposed) return
+      // A keystroke answers whatever the OSC 9 notification was about; let the
+      // next scan decide whether a dialog is still up.
+      if (this.osc9Waiting) {
+        this.osc9Waiting = false
+        this.scheduleActivityScan()
+      }
+      this.bridge.input(this.id, data)
     })
     this.term.onResize(({ cols, rows }) => {
       if (!this.disposed) this.bridge.resize(this.id, cols, rows)
@@ -188,6 +284,82 @@ export class TerminalController {
     this.term.focus()
   }
 
+  // ---- Coding-agent activity ------------------------------------------------
+
+  /** Host-side process scan attached/detached an agent. Scanning (and activity
+   * reporting) only runs while an agent is present, so plain shells produce no
+   * store churn. Safe to call from a store-listener render path: it never
+   * mutates state synchronously, only schedules a deferred scan. */
+  setAgentPresent(present: boolean): void {
+    if (this.agentPresent === present || this.disposed) return
+    this.agentPresent = present
+    this.lastReportedActivity = null
+    // Reset per-agent latches; titleState survives on purpose — agents write
+    // their title within the host's detection poll gap, before this lands.
+    this.osc9Waiting = false
+    this.progressWorking = false
+    this.scanState = null
+    if (present) this.scheduleActivityScan()
+  }
+
+  /** OSC 9: "4;<state>;<progress>" is ConEmu/iTerm2 progress reporting; any
+   * other payload is an iTerm2-style notification message. */
+  private handleOsc9(data: string): void {
+    if (!this.agentPresent || this.disposed) return
+    const progress = /^4;(\d*)/.exec(data)
+    if (progress) {
+      // 1 = running, 3 = indeterminate; 0/2 = cleared/error.
+      this.progressWorking = progress[1] === '1' || progress[1] === '3'
+      this.recomputeActivity()
+      return
+    }
+    this.osc9Waiting = OSC9_WAITING_RE.test(data)
+    this.recomputeActivity()
+    // Turn-complete and the like: rescan so a stale screen verdict clears.
+    if (!this.osc9Waiting) this.scheduleActivityScan()
+  }
+
+  private scheduleActivityScan(): void {
+    if (!this.agentPresent || this.disposed || this.scanTimer != null) return
+    this.scanTimer = window.setTimeout(() => {
+      this.scanTimer = null
+      if (!this.agentPresent || this.disposed) return
+      this.scanState = this.scanActivity()
+      this.recomputeActivity()
+    }, ACTIVITY_SCAN_MS)
+  }
+
+  /** Fuse the signal layers into one activity and report it on change. */
+  private recomputeActivity(): void {
+    if (!this.agentPresent || this.disposed) return
+    const activity: AgentActivity =
+      this.osc9Waiting || this.titleState === 'waiting' || this.scanState === 'waiting'
+        ? 'waiting'
+        : this.titleState === 'working' || this.progressWorking || this.scanState === 'working'
+          ? 'working'
+          : 'idle'
+    if (activity !== this.lastReportedActivity) {
+      this.lastReportedActivity = activity
+      this.hooks.onActivity?.(activity)
+    }
+  }
+
+  /** Classify the agent's state from the bottom screen of the buffer (the live
+   * TUI area, regardless of how far the user has scrolled back). */
+  private scanActivity(): AgentActivity {
+    const buf = this.term.buffer.active
+    const start = Math.max(0, buf.length - this.term.rows)
+    const lines: string[] = []
+    for (let i = start; i < buf.length; i++) {
+      const line = buf.getLine(i)
+      if (line) lines.push(line.translateToString(true))
+    }
+    const screen = lines.join('\n')
+    if (AGENT_WORKING_RE.test(screen)) return 'working'
+    if (AGENT_WAITING_RES.some((re) => re.test(screen))) return 'waiting'
+    return 'idle'
+  }
+
   private scheduleFit(): void {
     if (this.fitRaf) cancelAnimationFrame(this.fitRaf)
     this.fitRaf = requestAnimationFrame(() => {
@@ -207,6 +379,10 @@ export class TerminalController {
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
+    if (this.scanTimer != null) {
+      clearTimeout(this.scanTimer)
+      this.scanTimer = null
+    }
     if (this.fitRaf) cancelAnimationFrame(this.fitRaf)
     this.ro?.disconnect()
     this.ro = null

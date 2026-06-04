@@ -300,6 +300,139 @@ body.canvas-interacting {
   background: var(--vscode-scrollbarSlider-hoverBackground, rgba(128, 128, 128, 0.6));
 }
 
+/* ---- Coding-agent status (Claude Code / Codex) ---------------------------
+   A terminal hosting an agent gets a per-state accent color and an animated
+   RunCat365 runner sprite (media/runners/), masked & tinted via -webkit-mask
+   so one set of PNGs serves every state color and theme:
+     idle    → horse, blue   (agent at its prompt, nothing running)
+     working → cat,   amber  (task in flight)
+     waiting → parrot, pink  (a question / permission needs the user)        */
+
+.cnode-agent {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex: none;
+}
+
+.cnode.has-agent .cnode-agent {
+  display: inline-flex;
+}
+
+.cnode-agent-runner {
+  width: 18px;
+  height: 18px;
+}
+
+/* Current state in English next to the runner ("Idle" / "Working…" / "Waiting"). */
+.cnode-agent-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--agent-color) 80%, var(--text-main));
+}
+
+.cnode-agent-runner,
+.mm-runner {
+  display: block;
+  background-color: var(--agent-color, var(--text-muted));
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+}
+
+.cnode.has-agent .cnode-titlebar {
+  background: color-mix(in srgb, var(--agent-color) 16%, var(--surface-3));
+}
+
+.cnode.has-agent .cnode-title {
+  color: color-mix(in srgb, var(--agent-color) 55%, var(--text-main));
+}
+
+.cnode.agent-waiting .cnode-titlebar {
+  animation: agent-titlebar-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes agent-titlebar-pulse {
+  0%, 100% { background: color-mix(in srgb, var(--agent-color) 16%, var(--surface-3)); }
+  50% { background: color-mix(in srgb, var(--agent-color) 42%, var(--surface-3)); }
+}
+
+/* Minimap: agent terminals take their state color, a glow, and (when the rect
+   is large enough) a tiny white runner. */
+.minimap-agent {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--agent-color) 85%, transparent),
+    0 0 6px color-mix(in srgb, var(--agent-color) 55%, transparent);
+}
+
+.minimap-agent.agent-waiting {
+  animation: agent-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes agent-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.mm-runner {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 11px;
+  height: 11px;
+  background-color: rgba(255, 255, 255, 0.95);
+  pointer-events: none;
+}
+
+/* RunCat365 sprite cycles (5-frame horse/cat, 10-frame parrot). mask-image is
+   a discrete property, so each keyframe is a hard frame swap. */
+.runner-horse {
+  -webkit-mask-image: url('./runners/horse_0.png');
+  animation: runner-horse 1.4s linear infinite;
+}
+
+.runner-cat {
+  -webkit-mask-image: url('./runners/cat_0.png');
+  animation: runner-cat 0.45s linear infinite;
+}
+
+.runner-parrot {
+  -webkit-mask-image: url('./runners/parrot_0.png');
+  animation: runner-parrot 0.9s linear infinite;
+}
+
+@keyframes runner-horse {
+  0%  { -webkit-mask-image: url('./runners/horse_0.png'); }
+  20% { -webkit-mask-image: url('./runners/horse_1.png'); }
+  40% { -webkit-mask-image: url('./runners/horse_2.png'); }
+  60% { -webkit-mask-image: url('./runners/horse_3.png'); }
+  80% { -webkit-mask-image: url('./runners/horse_4.png'); }
+}
+
+@keyframes runner-cat {
+  0%  { -webkit-mask-image: url('./runners/cat_0.png'); }
+  20% { -webkit-mask-image: url('./runners/cat_1.png'); }
+  40% { -webkit-mask-image: url('./runners/cat_2.png'); }
+  60% { -webkit-mask-image: url('./runners/cat_3.png'); }
+  80% { -webkit-mask-image: url('./runners/cat_4.png'); }
+}
+
+@keyframes runner-parrot {
+  0%  { -webkit-mask-image: url('./runners/parrot_0.png'); }
+  10% { -webkit-mask-image: url('./runners/parrot_1.png'); }
+  20% { -webkit-mask-image: url('./runners/parrot_2.png'); }
+  30% { -webkit-mask-image: url('./runners/parrot_3.png'); }
+  40% { -webkit-mask-image: url('./runners/parrot_4.png'); }
+  50% { -webkit-mask-image: url('./runners/parrot_5.png'); }
+  60% { -webkit-mask-image: url('./runners/parrot_6.png'); }
+  70% { -webkit-mask-image: url('./runners/parrot_7.png'); }
+  80% { -webkit-mask-image: url('./runners/parrot_8.png'); }
+  90% { -webkit-mask-image: url('./runners/parrot_9.png'); }
+}
+
 /* ---- Regions ------------------------------------------------------------ */
 
 .cregion {

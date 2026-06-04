@@ -12,6 +12,7 @@
 
 import type { CanvasStore } from './store'
 import type { CanvasData } from './store'
+import { AGENT_ACTIVITY_META } from './types'
 import { icons } from './icons'
 import { t } from './i18n'
 
@@ -115,7 +116,8 @@ export class CanvasMinimap {
         next.nodes !== prev.nodes ||
         next.regions !== prev.regions ||
         next.zoomLevel !== prev.zoomLevel ||
-        next.containerSize !== prev.containerSize
+        next.containerSize !== prev.containerSize ||
+        next.agents !== prev.agents
       ) {
         this.rebuild(next)
       } else if (next.viewportOffset !== prev.viewportOffset) {
@@ -243,14 +245,30 @@ export class CanvasMinimap {
 
     for (const node of nodeList) {
       const d = document.createElement('div')
+      const w = Math.max(node.size.width * scale, 2)
+      const h = Math.max(node.size.height * scale, 2)
       d.style.position = 'absolute'
       d.style.left = `${toMiniX(node.origin.x)}px`
       d.style.top = `${toMiniY(node.origin.y)}px`
-      d.style.width = `${Math.max(node.size.width * scale, 2)}px`
-      d.style.height = `${Math.max(node.size.height * scale, 2)}px`
+      d.style.width = `${w}px`
+      d.style.height = `${h}px`
       d.style.backgroundColor = node.color || 'var(--minimap-node)'
       d.style.borderRadius = '1px'
       d.style.cursor = 'pointer'
+      // A terminal hosting a coding agent takes its activity color (+ a tiny
+      // animated runner when the rect is large enough to fit one).
+      const rec = s.agents[node.id]
+      if (rec?.agent) {
+        const meta = AGENT_ACTIVITY_META[rec.activity]
+        d.classList.add('minimap-agent', `agent-${rec.activity}`)
+        d.style.setProperty('--agent-color', meta.color)
+        d.style.backgroundColor = meta.color
+        if (w >= 16 && h >= 12) {
+          const runner = document.createElement('div')
+          runner.className = `mm-runner runner-${meta.runner}`
+          d.appendChild(runner)
+        }
+      }
       d.addEventListener('mousedown', (e) => {
         e.stopPropagation()
         e.preventDefault()
