@@ -1,0 +1,187 @@
+{
+  "name": "cate-canvas",
+  "displayName": "Cate Canvas — Infinite Canvas",
+  "description": "An infinite, zoomable spatial canvas inside VS Code. Pan, zoom, place notes and file cards anywhere, group them into regions, and never lose where you left things. Extracted from the Cate IDE.",
+  "version": "0.1.0",
+  "publisher": "cate",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Visualization",
+    "Notebooks",
+    "Other"
+  ],
+  "keywords": [
+    "canvas",
+    "infinite canvas",
+    "whiteboard",
+    "spatial",
+    "mind map",
+    "cate"
+  ],
+  "main": "./dist/extension.js",
+  "icon": "media/icon.png",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "cateCanvas.open",
+        "title": "Open Canvas",
+        "category": "Cate Canvas",
+        "icon": "$(layout)"
+      },
+      {
+        "command": "cateCanvas.addNote",
+        "title": "Add Note",
+        "category": "Cate Canvas",
+        "icon": "$(note)"
+      },
+      {
+        "command": "cateCanvas.addTerminal",
+        "title": "Add Terminal",
+        "category": "Cate Canvas",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "cateCanvas.addFile",
+        "title": "Add File Card…",
+        "category": "Cate Canvas",
+        "icon": "$(file-add)"
+      },
+      {
+        "command": "cateCanvas.addCurrentFile",
+        "title": "Add Active File to Canvas",
+        "category": "Cate Canvas",
+        "icon": "$(file-symlink-file)"
+      },
+      {
+        "command": "cateCanvas.fitToScreen",
+        "title": "Fit Canvas to Screen",
+        "category": "Cate Canvas",
+        "icon": "$(screen-full)"
+      },
+      {
+        "command": "cateCanvas.autoLayout",
+        "title": "Auto-Layout Canvas",
+        "category": "Cate Canvas",
+        "icon": "$(layout-centered)"
+      },
+      {
+        "command": "cateCanvas.resetView",
+        "title": "Reset Canvas View (Zoom 100%)",
+        "category": "Cate Canvas"
+      },
+      {
+        "command": "cateCanvas.export",
+        "title": "Export Canvas to JSON…",
+        "category": "Cate Canvas"
+      },
+      {
+        "command": "cateCanvas.import",
+        "title": "Import Canvas from JSON…",
+        "category": "Cate Canvas"
+      },
+      {
+        "command": "cateCanvas.clear",
+        "title": "Clear Canvas",
+        "category": "Cate Canvas"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "cateCanvas.addCurrentFile",
+          "when": "cateCanvas.active && editorIsOpen",
+          "group": "navigation@9"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "cateCanvas.addNote",
+          "when": "cateCanvas.active"
+        },
+        {
+          "command": "cateCanvas.addTerminal",
+          "when": "cateCanvas.active"
+        },
+        {
+          "command": "cateCanvas.addFile",
+          "when": "cateCanvas.active"
+        },
+        {
+          "command": "cateCanvas.fitToScreen",
+          "when": "cateCanvas.active"
+        },
+        {
+          "command": "cateCanvas.autoLayout",
+          "when": "cateCanvas.active"
+        },
+        {
+          "command": "cateCanvas.resetView",
+          "when": "cateCanvas.active"
+        },
+        {
+          "command": "cateCanvas.export",
+          "when": "cateCanvas.active"
+        },
+        {
+          "command": "cateCanvas.clear",
+          "when": "cateCanvas.active"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Cate Canvas",
+      "properties": {
+        "cateCanvas.gridStyle": {
+          "type": "string",
+          "enum": [
+            "dots",
+            "lines",
+            "none"
+          ],
+          "default": "dots",
+          "description": "Background grid style for the canvas."
+        },
+        "cateCanvas.snapToGrid": {
+          "type": "boolean",
+          "default": true,
+          "description": "Snap nodes to the grid (and to neighbor edges) when moving or resizing. Hold Alt to bypass."
+        },
+        "cateCanvas.zoomSpeed": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0.25,
+          "maximum": 3,
+          "description": "Multiplier for wheel / trackpad zoom speed."
+        },
+        "cateCanvas.showMinimap": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the minimap overview in the corner of the canvas."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.js --production",
+    "watch": "node esbuild.js --watch",
+    "typecheck": "tsc --noEmit",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@tabler/icons": "^3.44.0",
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
+    "esbuild": "^0.21.5",
+    "typescript": "^5.6.0"
+  },
+  "dependencies": {
+    "node-pty": "^1.1.0"
+  }
+}

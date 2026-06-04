@@ -1,0 +1,27 @@
+.vscode/**
+.gitignore
+src/**
+webview/**
+esbuild.js
+tsconfig.json
+**/*.map
+**/*.ts
+.cate/**
+/tmp/**
+
+# The webview/extension code is bundled into dist/ by esbuild, so we do NOT ship
+# node_modules wholesale. `vsce package` (without --no-dependencies) includes
+# only the *production* dependency tree — here that is node-pty (a native module
+# that cannot be bundled) and its build-time dep node-addon-api. devDependencies
+# (xterm, esbuild, typescript) are pruned automatically.
+#
+# Trim node-pty to its runtime footprint: keep lib/ + prebuilds/ + package.json,
+# drop the C++ build sources and the Windows .pdb debug symbols (~55 MB, never
+# loaded at runtime). The prebuilt .node / .exe / .dll binaries stay so the
+# packaged extension runs on macOS and Windows (arm64 + x64).
+node_modules/node-pty/deps/**
+node_modules/node-pty/src/**
+node_modules/node-pty/third_party/**
+node_modules/node-pty/scripts/**
+node_modules/node-pty/binding.gyp
+node_modules/node-pty/prebuilds/**/*.pdb

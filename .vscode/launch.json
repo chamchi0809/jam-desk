@@ -1,0 +1,25 @@
+{
+  // F5 → builds the bundles, then opens a second VS Code window
+  // (the "Extension Development Host") with Cate Canvas loaded.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Cate Canvas Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "preLaunchTask": "cate: build"
+    },
+    {
+      // Same, but assumes `cate: watch` is already running so launch is instant
+      // and rebuilds happen on save.
+      "name": "Run Cate Canvas Extension (watch)",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "preLaunchTask": "cate: watch"
+    }
+  ]
+}
