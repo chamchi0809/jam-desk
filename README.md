@@ -1,4 +1,7 @@
-# Jam Desk — Infinite Canvas for VS Code
+<img width="743" height="508" alt="" src="https://github.com/user-attachments/assets/63316098-ff46-47ab-ab07-811c503e84b2" />
+
+# Jam Desk - Infinite Canvas for VSCode and your AI agents.
+[Marketplace Link](https://marketplace.visualstudio.com/items?itemName=chamchi.jam-desk)
 
 An infinite, zoomable **spatial canvas** inside VS Code. Pan, zoom, and place
 notes and file cards anywhere on a boundless surface; group them into regions;
