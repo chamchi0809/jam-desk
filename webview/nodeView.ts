@@ -28,6 +28,7 @@ import { isMaximized } from './types'
 import { TerminalController } from './terminalView'
 import type { TerminalBridge } from './terminalView'
 import { icons } from './icons'
+import { t } from './i18n'
 
 export interface CanvasViewHooks {
   /** Open a workspace file (file-card "open" / double-click). */
@@ -189,7 +190,7 @@ export class CanvasView {
 
     const pinBtn = document.createElement('button')
     pinBtn.className = 'cnode-btn'
-    pinBtn.title = 'Pin'
+    pinBtn.title = t('pin')
     pinBtn.innerHTML = icons.pin
     pinBtn.addEventListener('click', (e) => {
       e.stopPropagation()
@@ -198,7 +199,7 @@ export class CanvasView {
 
     const maxBtn = document.createElement('button')
     maxBtn.className = 'cnode-btn'
-    maxBtn.title = 'Maximize'
+    maxBtn.title = t('maximize')
     maxBtn.innerHTML = icons.arrowsMaximize
     maxBtn.addEventListener('click', (e) => {
       e.stopPropagation()
@@ -207,7 +208,7 @@ export class CanvasView {
 
     const closeBtn = document.createElement('button')
     closeBtn.className = 'cnode-btn cnode-btn-close'
-    closeBtn.title = 'Close'
+    closeBtn.title = t('close')
     closeBtn.innerHTML = icons.x
     closeBtn.addEventListener('click', (e) => {
       e.stopPropagation()
@@ -226,7 +227,7 @@ export class CanvasView {
     if (node.kind === 'note') {
       const ta = document.createElement('textarea')
       ta.className = 'cnode-note'
-      ta.placeholder = '메모를 입력하세요…'
+      ta.placeholder = t('notePlaceholder')
       ta.spellcheck = false
       ta.addEventListener('focus', () => {
         // One undo step per editing session.
@@ -250,7 +251,7 @@ export class CanvasView {
         // Mount after this element is attached + sized so the first fit() is correct.
         requestAnimationFrame(() => ctrl.mount(host))
       } else {
-        host.textContent = '터미널 백엔드를 사용할 수 없습니다.'
+        host.textContent = t('terminalUnavailable')
       }
     } else {
       const file = document.createElement('div')
@@ -264,7 +265,7 @@ export class CanvasView {
       pathEl.className = 'cnode-file-path'
       const openBtn = document.createElement('button')
       openBtn.className = 'cnode-file-open'
-      openBtn.textContent = '열기'
+      openBtn.textContent = t('open')
       openBtn.addEventListener('click', (e) => {
         e.stopPropagation()
         const fp = this.store.getState().nodes[node.id]?.filePath
@@ -377,7 +378,11 @@ export class CanvasView {
 
     // Title + content.
     const fallbackTitle =
-      node.kind === 'note' ? 'Note' : node.kind === 'terminal' ? 'Terminal' : 'File'
+      node.kind === 'note'
+        ? t('defaultNote')
+        : node.kind === 'terminal'
+          ? t('defaultTerminal')
+          : t('defaultFile')
     el.titleEl.textContent = node.title || fallbackTitle
 
     if (node.kind === 'note' && el.textarea) {
@@ -387,7 +392,7 @@ export class CanvasView {
       }
     } else if (node.kind === 'file') {
       const fp = node.filePath ?? ''
-      if (el.fileNameEl) el.fileNameEl.textContent = node.title || basename(fp) || 'File'
+      if (el.fileNameEl) el.fileNameEl.textContent = node.title || basename(fp) || t('defaultFile')
       if (el.filePathEl) el.filePathEl.textContent = fp
     }
 
@@ -564,7 +569,7 @@ export class CanvasView {
     input.focus()
     input.select()
     const commit = () => {
-      const v = input.value.trim() || 'Region'
+      const v = input.value.trim() || t('defaultRegion')
       this.store.renameRegion(id, v)
       input.replaceWith(labelText)
       labelText.textContent = v

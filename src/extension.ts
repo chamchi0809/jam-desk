@@ -138,7 +138,7 @@ class TerminalManager {
       this.post({
         type: 'terminal.data',
         id,
-        data: `\r\n\x1b[31m[셸 실행 실패: ${String(err)}]\x1b[0m\r\n`,
+        data: `\r\n\x1b[31m${vscode.l10n.t('[Failed to launch shell: {0}]', String(err))}\x1b[0m\r\n`,
       })
       this.post({ type: 'terminal.exit', id, exitCode: 1 })
       return
@@ -401,7 +401,7 @@ class CanvasPanel {
       const doc = await vscode.workspace.openTextDocument(uri)
       await vscode.window.showTextDocument(doc, { preview: false, viewColumn: vscode.ViewColumn.Beside })
     } catch (err) {
-      vscode.window.showErrorMessage(`Jam Desk: 파일을 열 수 없습니다 — ${String(err)}`)
+      vscode.window.showErrorMessage(vscode.l10n.t('Jam Desk: Could not open file — {0}', String(err)))
     }
   }
 
@@ -410,7 +410,7 @@ class CanvasPanel {
       canSelectMany: false,
       canSelectFiles: true,
       canSelectFolders: false,
-      openLabel: '캔버스에 추가',
+      openLabel: vscode.l10n.t('Add to Canvas'),
       defaultUri: vscode.workspace.workspaceFolders?.[0]?.uri,
     })
     if (!picks || picks.length === 0) return
@@ -425,7 +425,7 @@ class CanvasPanel {
   private addCurrentFile(): void {
     const editor = vscode.window.activeTextEditor
     if (!editor) {
-      vscode.window.showInformationMessage('Jam Desk: 활성 편집기가 없습니다.')
+      vscode.window.showInformationMessage(vscode.l10n.t('Jam Desk: No active editor.'))
       return
     }
     const uri = editor.document.uri
@@ -438,7 +438,7 @@ class CanvasPanel {
 
   private async exportDocument(document: CanvasDocument): Promise<void> {
     const target = await vscode.window.showSaveDialog({
-      saveLabel: '내보내기',
+      saveLabel: vscode.l10n.t('Export'),
       filters: { JSON: ['json'] },
       defaultUri: vscode.workspace.workspaceFolders?.[0]
         ? vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, 'canvas.json')
@@ -447,14 +447,14 @@ class CanvasPanel {
     if (!target) return
     const data = Buffer.from(JSON.stringify(document, null, 2), 'utf8')
     await vscode.workspace.fs.writeFile(target, data)
-    vscode.window.showInformationMessage('Jam Desk: 캔버스를 내보냈습니다.')
+    vscode.window.showInformationMessage(vscode.l10n.t('Jam Desk: Canvas exported.'))
   }
 
   private async importDocument(): Promise<void> {
     const picks = await vscode.window.showOpenDialog({
       canSelectMany: false,
       filters: { JSON: ['json'] },
-      openLabel: '가져오기',
+      openLabel: vscode.l10n.t('Import'),
       defaultUri: vscode.workspace.workspaceFolders?.[0]?.uri,
     })
     if (!picks || picks.length === 0) return
@@ -463,7 +463,7 @@ class CanvasPanel {
       const document = JSON.parse(Buffer.from(bytes).toString('utf8'))
       this.post({ type: 'loadDocument', document })
     } catch (err) {
-      vscode.window.showErrorMessage(`Jam Desk: 가져오기 실패 — ${String(err)}`)
+      vscode.window.showErrorMessage(vscode.l10n.t('Jam Desk: Import failed — {0}', String(err)))
     }
   }
 
@@ -472,6 +472,9 @@ class CanvasPanel {
   private html(): string {
     const webview = this.panel.webview
     const nonce = getNonce()
+    // VS Code display language → <html lang>, read synchronously by the
+    // webview's i18n module to pick its string table.
+    const lang = /^[A-Za-z-]+$/.test(vscode.env.language) ? vscode.env.language : 'en'
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview.js'),
     )
@@ -487,7 +490,7 @@ class CanvasPanel {
     ].join('; ')
 
     return `<!DOCTYPE html>
-<html lang="ko">
+<html lang="${lang}">
   <head>
     <meta charset="UTF-8" />
     <meta http-equiv="Content-Security-Policy" content="${csp}" />

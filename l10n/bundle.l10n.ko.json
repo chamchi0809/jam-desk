@@ -1,0 +1,10 @@
+{
+  "[Failed to launch shell: {0}]": "[셸 실행 실패: {0}]",
+  "Jam Desk: Could not open file — {0}": "Jam Desk: 파일을 열 수 없습니다 — {0}",
+  "Add to Canvas": "캔버스에 추가",
+  "Jam Desk: No active editor.": "Jam Desk: 활성 편집기가 없습니다.",
+  "Export": "내보내기",
+  "Jam Desk: Canvas exported.": "Jam Desk: 캔버스를 내보냈습니다.",
+  "Import": "가져오기",
+  "Jam Desk: Import failed — {0}": "Jam Desk: 가져오기 실패 — {0}"
+}

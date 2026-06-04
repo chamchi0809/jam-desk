@@ -13,6 +13,7 @@
 import type { CanvasStore } from './store'
 import type { CanvasData } from './store'
 import { icons } from './icons'
+import { t } from './i18n'
 
 const DEFAULT_WIDTH = 200
 const DEFAULT_HEIGHT = 150
@@ -93,13 +94,13 @@ export class CanvasMinimap {
 
     this.resizeHandle = document.createElement('div')
     this.resizeHandle.className = 'minimap-resize'
-    this.resizeHandle.title = 'Drag to resize minimap'
+    this.resizeHandle.title = t('minimapResize')
     this.resizeHandle.addEventListener('mousedown', (e) => this.onResizeDown(e))
     this.root.appendChild(this.resizeHandle)
 
     this.moveHandle = document.createElement('div')
     this.moveHandle.className = 'minimap-move'
-    this.moveHandle.title = 'Drag to move minimap'
+    this.moveHandle.title = t('minimapMove')
     this.moveHandle.innerHTML = icons.gripVertical
     this.moveHandle.addEventListener('mousedown', (e) => this.onMoveDown(e))
     this.root.appendChild(this.moveHandle)

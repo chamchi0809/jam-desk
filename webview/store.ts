@@ -31,6 +31,7 @@ import type {
 } from './types'
 import { viewToCanvas as viewToCanvasCoords } from './coordinates'
 import { findFreePosition, defaultSize, autoLayoutAll } from './layout'
+import { t } from './i18n'
 
 // -----------------------------------------------------------------------------
 // State shape (data only — actions live as methods on the store object)
@@ -91,11 +92,11 @@ function generateId(): string {
 function defaultTitle(kind: NodeKind): string {
   switch (kind) {
     case 'note':
-      return 'Note'
+      return t('defaultNote')
     case 'terminal':
-      return 'Terminal'
+      return t('defaultTerminal')
     default:
-      return 'File'
+      return t('defaultFile')
   }
 }
 
@@ -1040,7 +1041,7 @@ export class CanvasStore {
     const maxX = Math.max(...selectedNodes.map((n) => n.origin.x + n.size.width)) + padding
     const maxY = Math.max(...selectedNodes.map((n) => n.origin.y + n.size.height)) + padding
 
-    const regionId = this.addRegion('Region', { x: minX, y: minY }, { width: maxX - minX, height: maxY - minY })
+    const regionId = this.addRegion(t('defaultRegion'), { x: minX, y: minY }, { width: maxX - minX, height: maxY - minY })
 
     this.set((s) => {
       const updatedNodes = { ...s.nodes }

@@ -18,6 +18,7 @@ import { FitAddon } from '@xterm/addon-fit'
 // Bundled as a string via esbuild's text loader and injected once (CSP allows
 // inline <style> through `style-src 'unsafe-inline'`).
 import xtermCss from '@xterm/xterm/css/xterm.css'
+import { t } from './i18n'
 
 /** The webview side of the terminal protocol; implemented by Persistence. */
 export interface TerminalBridge {
@@ -111,6 +112,22 @@ export class TerminalController {
     })
     this.fit = new FitAddon()
     this.term.loadAddon(this.fit)
+
+    // xterm.js sends Shift+Enter as a plain CR, which TUIs like Claude Code
+    // treat as submit. Send backslash+CR (line continuation) instead so
+    // Claude Code inserts a newline; shells (zsh/bash) show a PS2
+    // continuation prompt, which is also a newline-like behavior.
+    // NOTE: the handler fires for keydown, keypress AND keyup. Returning
+    // false on keydown does not preventDefault, so the browser still fires
+    // keypress — xterm would then send a plain \r and submit anyway. Block
+    // every event type for Shift+Enter; emit our sequence on keydown only.
+    this.term.attachCustomKeyEventHandler((ev) => {
+      if (ev.key === 'Enter' && ev.shiftKey && !ev.ctrlKey && !ev.altKey && !ev.metaKey) {
+        if (ev.type === 'keydown' && !this.disposed) this.bridge.input(this.id, '\\\r')
+        return false
+      }
+      return true
+    })
   }
 
   /** Attach to a host element (already in the DOM and laid out) and start the PTY. */
@@ -134,7 +151,7 @@ export class TerminalController {
       },
       onExit: (code) => {
         if (this.disposed) return
-        this.term.write(`\r\n\x1b[2m[프로세스가 종료되었습니다 (코드 ${code})]\x1b[0m\r\n`)
+        this.term.write(`\r\n\x1b[2m${t('processExited', code)}\x1b[0m\r\n`)
       },
     })
 

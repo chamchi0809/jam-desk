@@ -8,6 +8,7 @@
 import type { CanvasStore } from './store'
 import { settings, applySettings } from './settings'
 import { icons } from './icons'
+import { t } from './i18n'
 
 export interface ToolbarHooks {
   /** Host picks a workspace file → adds a file node. */
@@ -37,62 +38,62 @@ export class CanvasToolbar {
     this.root.className = 'toolbar'
 
     // -- Tools -------------------------------------------------------------
-    this.selectBtn = this.button('Select', icons.pointer, '선택 도구 (V)', () =>
+    this.selectBtn = this.button('Select', icons.pointer, t('toolSelect'), () =>
       this.store.setTool('select'),
     )
-    this.handBtn = this.button('Hand', icons.handStop, '이동 도구 (H / Space)', () =>
+    this.handBtn = this.button('Hand', icons.handStop, t('toolHand'), () =>
       this.store.setTool('hand'),
     )
 
     // -- Add ---------------------------------------------------------------
-    const addNoteBtn = this.button('Note', icons.note, '메모 추가', () => {
+    const addNoteBtn = this.button('Note', icons.note, t('addNote'), () => {
       this.store.addNode('note')
     })
-    const addTerminalBtn = this.button('Terminal', icons.terminal, '터미널 추가', () => {
+    const addTerminalBtn = this.button('Terminal', icons.terminal, t('addTerminal'), () => {
       this.store.addNode('terminal')
     })
-    const addFileBtn = this.button('File', icons.filePlus, '파일 노드 추가', () => {
+    const addFileBtn = this.button('File', icons.filePlus, t('addFileNode'), () => {
       this.hooks.onAddFile?.()
     })
-    const addCurrentBtn = this.button('Current', icons.fileImport, '현재 편집기 파일 추가', () => {
+    const addCurrentBtn = this.button('Current', icons.fileImport, t('addEditorFile'), () => {
       this.hooks.onAddCurrentFile?.()
     })
 
     // -- Zoom --------------------------------------------------------------
-    const zoomOut = this.button('ZoomOut', icons.zoomOut, '축소', () => {
+    const zoomOut = this.button('ZoomOut', icons.zoomOut, t('zoomOut'), () => {
       this.store.animateZoomTo(this.store.getState().zoomLevel - 0.1)
     })
-    this.zoomLabel = this.button('Zoom', '100%', '100%로 초기화', () => {
+    this.zoomLabel = this.button('Zoom', '100%', t('zoomReset'), () => {
       this.store.animateZoomTo(1)
     })
     this.zoomLabel.classList.add('toolbar-zoom-label')
-    const zoomIn = this.button('ZoomIn', icons.zoomIn, '확대', () => {
+    const zoomIn = this.button('ZoomIn', icons.zoomIn, t('zoomIn'), () => {
       this.store.animateZoomTo(this.store.getState().zoomLevel + 0.1)
     })
 
-    const fitBtn = this.button('Fit', icons.maximize, '화면에 맞추기 (Shift+1)', () =>
+    const fitBtn = this.button('Fit', icons.maximize, t('fitToScreenShortcut'), () =>
       this.store.zoomToFit(),
     )
-    const resetBtn = this.button('Reset', icons.restore, '뷰 초기화', () => this.store.resetView())
+    const resetBtn = this.button('Reset', icons.restore, t('resetView'), () => this.store.resetView())
 
     // -- Arrange -----------------------------------------------------------
-    const layoutBtn = this.button('Layout', icons.layoutGrid, '자동 정렬', () =>
+    const layoutBtn = this.button('Layout', icons.layoutGrid, t('autoLayout'), () =>
       this.store.autoLayout(),
     )
-    const groupBtn = this.button('Group', icons.boxMultiple, '선택 항목 그룹화', () =>
+    const groupBtn = this.button('Group', icons.boxMultiple, t('groupSelection'), () =>
       this.store.groupSelectedIntoRegion(),
     )
 
     // -- History -----------------------------------------------------------
-    this.undoBtn = this.button('Undo', icons.arrowBackUp, '실행 취소 (Cmd/Ctrl+Z)', () =>
+    this.undoBtn = this.button('Undo', icons.arrowBackUp, t('undo'), () =>
       this.store.undo(),
     )
-    this.redoBtn = this.button('Redo', icons.arrowForwardUp, '다시 실행 (Cmd/Ctrl+Shift+Z)', () =>
+    this.redoBtn = this.button('Redo', icons.arrowForwardUp, t('redo'), () =>
       this.store.redo(),
     )
 
     // -- Minimap -----------------------------------------------------------
-    this.minimapBtn = this.button('Minimap', icons.map, '미니맵 표시/숨김', () => {
+    this.minimapBtn = this.button('Minimap', icons.map, t('toggleMinimap'), () => {
       const next = !settings.showMinimap
       applySettings({ showMinimap: next })
       this.hooks.onToggleMinimap?.(next)

@@ -1,0 +1,19 @@
+{
+  "jamDesk.displayName": "Jam Desk — 무한 캔버스",
+  "jamDesk.description": "무한 캔버스 안에서 터미널을 보고 관리하세요. Cate IDE에서 영감을 받았습니다.",
+  "jamDesk.command.open.title": "캔버스 열기",
+  "jamDesk.command.addNote.title": "메모 추가",
+  "jamDesk.command.addTerminal.title": "터미널 추가",
+  "jamDesk.command.addFile.title": "파일 카드 추가…",
+  "jamDesk.command.addCurrentFile.title": "활성 파일을 캔버스에 추가",
+  "jamDesk.command.fitToScreen.title": "캔버스 화면에 맞추기",
+  "jamDesk.command.autoLayout.title": "캔버스 자동 정렬",
+  "jamDesk.command.resetView.title": "캔버스 뷰 초기화 (확대/축소 100%)",
+  "jamDesk.command.export.title": "캔버스를 JSON으로 내보내기…",
+  "jamDesk.command.import.title": "JSON에서 캔버스 가져오기…",
+  "jamDesk.command.clear.title": "캔버스 비우기",
+  "jamDesk.config.gridStyle.description": "캔버스의 배경 그리드 스타일입니다.",
+  "jamDesk.config.snapToGrid.description": "이동하거나 크기를 조절할 때 노드를 그리드(및 이웃 가장자리)에 스냅합니다. Alt 키를 누르면 무시합니다.",
+  "jamDesk.config.zoomSpeed.description": "휠 / 트랙패드 확대/축소 속도 배율입니다.",
+  "jamDesk.config.showMinimap.description": "캔버스 모서리에 미니맵 개요를 표시합니다."
+}

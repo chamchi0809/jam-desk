@@ -16,6 +16,7 @@ import { CanvasInteraction } from './interaction'
 import type { ContextMenuRequest } from './interaction'
 import { Persistence } from './persistence'
 import { settings } from './settings'
+import { t } from './i18n'
 import type { Point } from './types'
 
 // -----------------------------------------------------------------------------
@@ -43,17 +44,17 @@ class ContextMenu {
     this.close()
     const at: Point = req.canvasPoint
     const items: MenuItem[] = [
-      { label: '메모 추가', run: () => this.store.addNode('note', {}, at) },
-      { label: '터미널 추가', run: () => this.store.addNode('terminal', {}, at) },
-      { label: '파일 카드 추가…', run: () => this.persistence.pickFile() },
-      { label: '현재 파일 추가', run: () => this.persistence.addCurrentFile() },
+      { label: t('addNote'), run: () => this.store.addNode('note', {}, at) },
+      { label: t('addTerminal'), run: () => this.store.addNode('terminal', {}, at) },
+      { label: t('addFileCard'), run: () => this.persistence.pickFile() },
+      { label: t('addCurrentFile'), run: () => this.persistence.addCurrentFile() },
       { label: '—', run: () => {} },
-      { label: '전체 선택', run: () => this.store.selectAll() },
-      { label: '자동 정렬', run: () => this.store.autoLayout() },
-      { label: '화면에 맞추기', run: () => this.store.zoomToFit() },
-      { label: '뷰 초기화', run: () => this.store.resetView() },
+      { label: t('selectAll'), run: () => this.store.selectAll() },
+      { label: t('autoLayout'), run: () => this.store.autoLayout() },
+      { label: t('fitToScreen'), run: () => this.store.zoomToFit() },
+      { label: t('resetView'), run: () => this.store.resetView() },
       { label: '—', run: () => {} },
-      { label: '캔버스 비우기', run: () => this.store.clearAll() },
+      { label: t('clearCanvas'), run: () => this.store.clearAll() },
     ]
 
     const menu = document.createElement('div')

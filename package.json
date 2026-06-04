@@ -1,8 +1,8 @@
 {
   "name": "jam-desk",
-  "displayName": "Jam Desk — Infinite Canvas",
-  "description": "View, manage your terminals inside an infinite canvas. Inspired by the Cate IDE.",
-  "version": "0.1.0",
+  "displayName": "%jamDesk.displayName%",
+  "description": "%jamDesk.description%",
+  "version": "0.2.0",
   "publisher": "chamchi",
   "repository": {
     "url": "https://github.com/chamchi0809/jam-desk"
@@ -25,70 +25,74 @@
     "jam desk"
   ],
   "main": "./dist/extension.js",
+  "l10n": "./l10n",
   "icon": "media/icon.png",
   "activationEvents": [],
   "contributes": {
     "commands": [
       {
         "command": "jamDesk.open",
-        "title": "Open Canvas",
+        "title": "%jamDesk.command.open.title%",
         "category": "Jam Desk",
-        "icon": "$(layout)"
+        "icon": {
+          "light": "media/open-canvas-light.svg",
+          "dark": "media/open-canvas-dark.svg"
+        }
       },
       {
         "command": "jamDesk.addNote",
-        "title": "Add Note",
+        "title": "%jamDesk.command.addNote.title%",
         "category": "Jam Desk",
         "icon": "$(note)"
       },
       {
         "command": "jamDesk.addTerminal",
-        "title": "Add Terminal",
+        "title": "%jamDesk.command.addTerminal.title%",
         "category": "Jam Desk",
         "icon": "$(terminal)"
       },
       {
         "command": "jamDesk.addFile",
-        "title": "Add File Card…",
+        "title": "%jamDesk.command.addFile.title%",
         "category": "Jam Desk",
         "icon": "$(file-add)"
       },
       {
         "command": "jamDesk.addCurrentFile",
-        "title": "Add Active File to Canvas",
+        "title": "%jamDesk.command.addCurrentFile.title%",
         "category": "Jam Desk",
         "icon": "$(file-symlink-file)"
       },
       {
         "command": "jamDesk.fitToScreen",
-        "title": "Fit Canvas to Screen",
+        "title": "%jamDesk.command.fitToScreen.title%",
         "category": "Jam Desk",
         "icon": "$(screen-full)"
       },
       {
         "command": "jamDesk.autoLayout",
-        "title": "Auto-Layout Canvas",
+        "title": "%jamDesk.command.autoLayout.title%",
         "category": "Jam Desk",
         "icon": "$(layout-centered)"
       },
       {
         "command": "jamDesk.resetView",
-        "title": "Reset Canvas View (Zoom 100%)",
+        "title": "%jamDesk.command.resetView.title%",
         "category": "Jam Desk"
       },
       {
         "command": "jamDesk.export",
-        "title": "Export Canvas to JSON…",
+        "title": "%jamDesk.command.export.title%",
         "category": "Jam Desk"
       },
       {
         "command": "jamDesk.import",
-        "title": "Import Canvas from JSON…",
+        "title": "%jamDesk.command.import.title%",
         "category": "Jam Desk"
       },
       {
         "command": "jamDesk.clear",
-        "title": "Clear Canvas",
+        "title": "%jamDesk.command.clear.title%",
         "category": "Jam Desk"
       }
     ],
@@ -98,6 +102,11 @@
           "command": "jamDesk.addCurrentFile",
           "when": "jamDesk.active && editorIsOpen",
           "group": "navigation@9"
+        },
+        {
+          "command": "jamDesk.open",
+          "when": "!jamDesk.active",
+          "group": "navigation@10"
         }
       ],
       "commandPalette": [
@@ -146,24 +155,24 @@
             "none"
           ],
           "default": "dots",
-          "description": "Background grid style for the canvas."
+          "description": "%jamDesk.config.gridStyle.description%"
         },
         "jamDesk.snapToGrid": {
           "type": "boolean",
           "default": true,
-          "description": "Snap nodes to the grid (and to neighbor edges) when moving or resizing. Hold Alt to bypass."
+          "description": "%jamDesk.config.snapToGrid.description%"
         },
         "jamDesk.zoomSpeed": {
           "type": "number",
           "default": 1,
           "minimum": 0.25,
           "maximum": 3,
-          "description": "Multiplier for wheel / trackpad zoom speed."
+          "description": "%jamDesk.config.zoomSpeed.description%"
         },
         "jamDesk.showMinimap": {
           "type": "boolean",
           "default": true,
-          "description": "Show the minimap overview in the corner of the canvas."
+          "description": "%jamDesk.config.showMinimap.description%"
         }
       }
     }

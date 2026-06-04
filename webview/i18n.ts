@@ -1,0 +1,99 @@
+// =============================================================================
+// i18n — webview string table.
+//
+// The host writes the VS Code display language into <html lang> (see
+// extension.ts html()), so the table can be picked synchronously at module
+// load, before any view builds its DOM. Korean for `ko*` locales, English for
+// everything else. Placeholders use `{0}`-style indices.
+// =============================================================================
+
+const en = {
+  // Context menu / commands
+  addNote: 'Add Note',
+  addTerminal: 'Add Terminal',
+  addFileCard: 'Add File Card…',
+  addCurrentFile: 'Add Current File',
+  selectAll: 'Select All',
+  autoLayout: 'Auto-Layout',
+  fitToScreen: 'Fit to Screen',
+  resetView: 'Reset View',
+  clearCanvas: 'Clear Canvas',
+  // Toolbar tooltips
+  toolSelect: 'Select tool (V)',
+  toolHand: 'Hand tool (H / Space)',
+  addFileNode: 'Add File Node',
+  addEditorFile: 'Add Active Editor File',
+  zoomOut: 'Zoom Out',
+  zoomReset: 'Reset to 100%',
+  zoomIn: 'Zoom In',
+  fitToScreenShortcut: 'Fit to Screen (Shift+1)',
+  groupSelection: 'Group Selection',
+  undo: 'Undo (Cmd/Ctrl+Z)',
+  redo: 'Redo (Cmd/Ctrl+Shift+Z)',
+  toggleMinimap: 'Show/Hide Minimap',
+  // Node chrome
+  pin: 'Pin',
+  maximize: 'Maximize',
+  close: 'Close',
+  notePlaceholder: 'Type a note…',
+  terminalUnavailable: 'Terminal backend is unavailable.',
+  open: 'Open',
+  processExited: '[Process exited (code {0})]',
+  // Minimap
+  minimapResize: 'Drag to resize minimap',
+  minimapMove: 'Drag to move minimap',
+  // Default titles
+  defaultNote: 'Note',
+  defaultTerminal: 'Terminal',
+  defaultFile: 'File',
+  defaultRegion: 'Region',
+}
+
+const ko: typeof en = {
+  addNote: '메모 추가',
+  addTerminal: '터미널 추가',
+  addFileCard: '파일 카드 추가…',
+  addCurrentFile: '현재 파일 추가',
+  selectAll: '전체 선택',
+  autoLayout: '자동 정렬',
+  fitToScreen: '화면에 맞추기',
+  resetView: '뷰 초기화',
+  clearCanvas: '캔버스 비우기',
+  toolSelect: '선택 도구 (V)',
+  toolHand: '이동 도구 (H / Space)',
+  addFileNode: '파일 노드 추가',
+  addEditorFile: '현재 편집기 파일 추가',
+  zoomOut: '축소',
+  zoomReset: '100%로 초기화',
+  zoomIn: '확대',
+  fitToScreenShortcut: '화면에 맞추기 (Shift+1)',
+  groupSelection: '선택 항목 그룹화',
+  undo: '실행 취소 (Cmd/Ctrl+Z)',
+  redo: '다시 실행 (Cmd/Ctrl+Shift+Z)',
+  toggleMinimap: '미니맵 표시/숨김',
+  pin: '고정',
+  maximize: '최대화',
+  close: '닫기',
+  notePlaceholder: '메모를 입력하세요…',
+  terminalUnavailable: '터미널 백엔드를 사용할 수 없습니다.',
+  open: '열기',
+  processExited: '[프로세스가 종료되었습니다 (코드 {0})]',
+  minimapResize: '드래그하여 미니맵 크기 조절',
+  minimapMove: '드래그하여 미니맵 이동',
+  defaultNote: '메모',
+  defaultTerminal: '터미널',
+  defaultFile: '파일',
+  defaultRegion: '영역',
+}
+
+export type MessageKey = keyof typeof en
+
+const locale = (document.documentElement.lang || 'en').toLowerCase()
+const table: typeof en = locale.startsWith('ko') ? ko : en
+
+/** Look up a UI string for the active locale, filling `{0}`-style placeholders. */
+export function t(key: MessageKey, ...args: Array<string | number>): string {
+  let s = table[key]
+  for (let i = 0; i < args.length; i++) s = s.replace(`{${i}}`, String(args[i]))
+  return s
+}

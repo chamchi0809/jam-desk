@@ -176,6 +176,11 @@ export class CanvasInteraction {
       const nodeId = nodeEl?.getAttribute('data-node-id')
       const focusedNodeId = this.store.getState().focusedNodeId
       if (nodeId && nodeId === focusedNodeId) {
+        // Terminal: xterm owns the wheel entirely (scrollback scrolling, or
+        // arrow-key emulation in the alternate buffer). Its real scroller is
+        // the inner .xterm-viewport, so the content-box check below would
+        // never match — let the event through untouched instead.
+        if (target.closest('.cnode-terminal')) return
         const isHorizontal = Math.abs(e.deltaX) > Math.abs(e.deltaY)
         const canScroll = isHorizontal
           ? nodeContent.scrollWidth > nodeContent.clientWidth

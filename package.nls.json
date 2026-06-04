@@ -1,0 +1,19 @@
+{
+  "jamDesk.displayName": "Jam Desk — Infinite Canvas",
+  "jamDesk.description": "View, manage your terminals inside an infinite canvas. Inspired by the Cate IDE.",
+  "jamDesk.command.open.title": "Open Canvas",
+  "jamDesk.command.addNote.title": "Add Note",
+  "jamDesk.command.addTerminal.title": "Add Terminal",
+  "jamDesk.command.addFile.title": "Add File Card…",
+  "jamDesk.command.addCurrentFile.title": "Add Active File to Canvas",
+  "jamDesk.command.fitToScreen.title": "Fit Canvas to Screen",
+  "jamDesk.command.autoLayout.title": "Auto-Layout Canvas",
+  "jamDesk.command.resetView.title": "Reset Canvas View (Zoom 100%)",
+  "jamDesk.command.export.title": "Export Canvas to JSON…",
+  "jamDesk.command.import.title": "Import Canvas from JSON…",
+  "jamDesk.command.clear.title": "Clear Canvas",
+  "jamDesk.config.gridStyle.description": "Background grid style for the canvas.",
+  "jamDesk.config.snapToGrid.description": "Snap nodes to the grid (and to neighbor edges) when moving or resizing. Hold Alt to bypass.",
+  "jamDesk.config.zoomSpeed.description": "Multiplier for wheel / trackpad zoom speed.",
+  "jamDesk.config.showMinimap.description": "Show the minimap overview in the corner of the canvas."
+}
