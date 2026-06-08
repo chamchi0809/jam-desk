@@ -132,6 +132,9 @@ export class CanvasView {
       ) {
         this.reconcileNodes(next)
       }
+      if (next.zoomLevel !== prev.zoomLevel) {
+        this.nodeEls.forEach((el) => el.terminal?.refreshAfterCanvasZoom())
+      }
       // When a terminal node becomes the focused node (created, command, or
       // Tab/arrow navigation), move DOM focus into its xterm so keystrokes go
       // to the shell instead of being swallowed as canvas shortcuts. Keyed on

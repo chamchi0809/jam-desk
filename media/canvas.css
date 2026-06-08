@@ -60,10 +60,6 @@ body.canvas-interacting {
   cursor: grab;
 }
 
-.canvas-world {
-  will-change: transform;
-}
-
 .canvas-grid {
   position: absolute;
   inset: 0;

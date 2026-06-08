@@ -142,7 +142,11 @@ app.appendChild(canvasEl)
 // -----------------------------------------------------------------------------
 
 function applyTransform(zoom: number, offset: Point): void {
-  world.style.transform = `scale(${zoom}) translate(${offset.x / zoom}px, ${offset.y / zoom}px)`
+  const dpr = window.devicePixelRatio || 1
+  // 화면 이동값을 실제 픽셀 격자에 맞춰 반 픽셀 렌더링으로 인한 흐림을 줄인다.
+  const x = Math.round(offset.x * dpr) / dpr
+  const y = Math.round(offset.y * dpr) / dpr
+  world.style.transform = `scale(${zoom}) translate(${x / zoom}px, ${y / zoom}px)`
 }
 applyTransform(store.getState().zoomLevel, store.getState().viewportOffset)
 store.subscribe((next, prev) => {

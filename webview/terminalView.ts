@@ -298,6 +298,7 @@ export class TerminalController {
    * once typed into the shell, or cancelled if the user types first. */
   private initialCommand: string | undefined
   private initialCommandTimer: number | null = null
+  private zoomRefreshTimer: number | null = null
 
   constructor(
     private id: string,
@@ -510,6 +511,16 @@ export class TerminalController {
       return
     }
     this.term.focus()
+  }
+
+  refreshAfterCanvasZoom(): void {
+    if (this.disposed || !this.mounted) return
+    if (this.zoomRefreshTimer != null) clearTimeout(this.zoomRefreshTimer)
+    this.zoomRefreshTimer = window.setTimeout(() => {
+      this.zoomRefreshTimer = null
+      if (this.disposed) return
+      this.term.refresh(0, this.term.rows - 1)
+    }, 80)
   }
 
   /** Make xterm's pointer→cell mapping account for the world's `scale(zoom)`
@@ -754,6 +765,10 @@ export class TerminalController {
     if (this.initialCommandTimer != null) {
       clearTimeout(this.initialCommandTimer)
       this.initialCommandTimer = null
+    }
+    if (this.zoomRefreshTimer != null) {
+      clearTimeout(this.zoomRefreshTimer)
+      this.zoomRefreshTimer = null
     }
     if (this.fitRaf) cancelAnimationFrame(this.fitRaf)
     this.ro?.disconnect()
