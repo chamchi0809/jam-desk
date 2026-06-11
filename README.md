@@ -1,4 +1,4 @@
-<img width="743" height="508" alt="" src="https://github.com/user-attachments/assets/63316098-ff46-47ab-ab07-811c503e84b2" />
+<img width="686" height="512" alt="image" src="https://github.com/user-attachments/assets/86ea04da-56fc-4bbb-9603-9f022be846f0" />
 
 # Jam Desk — Infinite Canvas for VS Code and your AI agents
 
