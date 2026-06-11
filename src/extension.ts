@@ -862,8 +862,10 @@ class CanvasPanel {
   private async openFile(filePath: string): Promise<void> {
     try {
       const uri = this.resolveUri(filePath)
-      const doc = await vscode.workspace.openTextDocument(uri)
-      await vscode.window.showTextDocument(doc, { preview: false, viewColumn: vscode.ViewColumn.Beside })
+      await vscode.commands.executeCommand('vscode.open', uri, {
+        preview: false,
+        viewColumn: vscode.ViewColumn.Beside,
+      })
     } catch (err) {
       vscode.window.showErrorMessage(vscode.l10n.t('Jam Desk: Could not open file — {0}', String(err)))
     }
