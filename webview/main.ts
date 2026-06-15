@@ -47,6 +47,7 @@ class ContextMenu {
     const items: MenuItem[] = [
       { label: t('addNote'), run: () => this.store.addNode('note', {}, at) },
       { label: t('addTerminal'), run: () => this.store.addNode('terminal', {}, at) },
+      { label: t('addBrowser'), run: () => this.store.addNode('browser', {}, at) },
       { label: t('addFileCard'), run: () => this.persistence.pickFile() },
       { label: t('addCurrentFile'), run: () => this.persistence.addCurrentFile() },
       { label: '—', run: () => {} },
@@ -171,6 +172,9 @@ const persistence = new Persistence(store, {
 
 const view = new CanvasView(world, store, {
   onOpenFile: (filePath) => persistence.openFile(filePath),
+  onOpenExternal: (url) => persistence.openExternal(url),
+  onCheckEmbeddable: (url) => persistence.checkEmbeddable(url),
+  onOpenDevTools: () => persistence.openDevTools(),
   terminals: persistence.terminals,
   files: persistence.files,
 })
@@ -283,6 +287,9 @@ function runCommand(command: string): void {
     case 'addTerminal':
       store.addNode('terminal')
       break
+    case 'addBrowser':
+      store.addNode('browser')
+      break
     case 'addFile':
       persistence.pickFile()
       break
@@ -321,7 +328,19 @@ function isTyping(): boolean {
   return tag === 'TEXTAREA' || tag === 'INPUT' || a.isContentEditable
 }
 
+/** A focused browser node owns the keyboard — its embedded page / address bar
+ * should receive every key, so canvas shortcuts are suppressed entirely. */
+function isBrowserFocused(): boolean {
+  const s = store.getState()
+  const id = s.focusedNodeId
+  return !!id && s.nodes[id]?.kind === 'browser'
+}
+
 window.addEventListener('keydown', (e) => {
+  // While a browser node is focused, disable all canvas shortcuts so the
+  // embedded page (and its address bar) gets the keyboard unimpeded.
+  if (isBrowserFocused()) return
+
   // Space-hold → temporary hand tool (pan), unless typing.
   if (e.code === 'Space' && !isTyping()) {
     if (!spaceHeld) {
@@ -359,6 +378,7 @@ window.addEventListener('keydown', (e) => {
   }
 
   if (mod && e.key === '0') {
+    if (isTyping()) return
     e.preventDefault()
     store.animateZoomTo(1)
     return

@@ -29,7 +29,7 @@ export interface Rect {
 
 // ---- Node content kinds (VS Code adaptation) --------------------------------
 
-export type NodeKind = 'note' | 'file' | 'terminal'
+export type NodeKind = 'note' | 'file' | 'terminal' | 'browser'
 
 export type CanvasNodeId = string
 
@@ -40,6 +40,12 @@ export interface CanvasNodeState {
   text?: string
   /** Workspace-relative path for `file` nodes. */
   filePath?: string
+  /** Current URL embedded in a `browser` node's iframe. Empty until the user
+   *  navigates; persisted so the page is restored on reload. */
+  url?: string
+  /** Zoom factor for a `browser` node's embedded page (CSS `zoom` on the iframe).
+   *  Defaults to 1; persisted. */
+  browserZoom?: number
   /** Optional starting working directory for `terminal` nodes (absolute or
    *  workspace-relative). Defaults to the workspace root on the host. */
   cwd?: string
@@ -240,12 +246,14 @@ export const NODE_DEFAULT_SIZES: Record<NodeKind, Size> = {
   note: { width: 280, height: 200 },
   file: { width: 320, height: 160 },
   terminal: { width: 520, height: 340 },
+  browser: { width: 720, height: 520 },
 }
 
 export const NODE_MINIMUM_SIZES: Record<NodeKind, Size> = {
   note: { width: 140, height: 100 },
   file: { width: 200, height: 92 },
   terminal: { width: 240, height: 140 },
+  browser: { width: 280, height: 200 },
 }
 
 /** A palette of accent colors offered for notes & regions (RGBA so the minimap

@@ -37,6 +37,13 @@ import type { MessageKey } from './i18n'
 export interface CanvasViewHooks {
   /** Open a workspace file (file-card "open" / double-click). */
   onOpenFile?: (filePath: string) => void
+  /** Open a URL in the system browser (browser node "open externally"). */
+  onOpenExternal?: (url: string) => void
+  /** Ask the host whether a URL permits iframe embedding (X-Frame-Options / CSP
+   * frame-ancestors). Used to show a clear notice instead of a blank frame. */
+  onCheckEmbeddable?: (url: string) => Promise<boolean>
+  /** Open the webview developer tools (browser node "debug" button). */
+  onOpenDevTools?: () => void
   /** Bridge to the host PTY backend, used by `terminal` nodes. */
   terminals?: TerminalBridge
   /** Bridge to the host file reader/watcher, used by `file` node previews. */
@@ -65,6 +72,25 @@ interface NodeElements {
   agentBadge?: HTMLSpanElement
   agentRunner?: HTMLSpanElement
   agentLabel?: HTMLSpanElement
+  // browser
+  iframe?: HTMLIFrameElement
+  urlInput?: HTMLInputElement
+  browserBackBtn?: HTMLButtonElement
+  browserForwardBtn?: HTMLButtonElement
+  /** URL whose embeddability is currently being checked — guards against a
+   *  stale check result overwriting a newer navigation. */
+  embedCheckUrl?: string
+  /** Auto-fading "open externally" hint shown on each navigation. */
+  browserHint?: HTMLDivElement
+  /** Live zoom-percentage readout in the browser bar. */
+  browserZoomLabel?: HTMLButtonElement
+  /** Address-bar navigation history (link clicks inside a cross-origin frame
+   *  can't be observed, so back/forward only span bar navigations). */
+  browserHistory?: string[]
+  browserIndex?: number
+  /** URL currently loaded into the iframe — guards against reloading on every
+   *  unrelated store change. */
+  loadedUrl?: string
   animState?: string
   // Cancellable finalize timer for the exit animation (independent of any opacity
   // transition, so it fires even when opacity stays 0→0). Cleared if the node is
@@ -92,6 +118,35 @@ interface RegionElements {
   container: HTMLDivElement
   labelBar: HTMLDivElement
   labelText: HTMLSpanElement
+}
+
+/** The sandbox flags a browser node's iframe runs under — permissive enough for
+ *  ordinary sites (scripts, forms, popups, downloads) without granting the frame
+ *  top-level navigation of the host webview. */
+const BROWSER_SANDBOX =
+  'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-pointer-lock'
+
+/** Turn whatever the user typed in the address bar into a navigable URL: keep an
+ *  explicit http(s) scheme, assume https for bare hosts (example.com, localhost:3000,
+ *  192.168.0.1), and fall back to a web search for free text. */
+function normalizeUrl(raw: string): string {
+  const s = raw.trim()
+  if (!s) return ''
+  if (/^https?:\/\//i.test(s)) return s
+  const looksLikeHost =
+    /^(localhost|\d{1,3}(\.\d{1,3}){3})(:\d+)?([/?#]|$)/i.test(s) || /^[\w-]+(\.[\w-]+)+/.test(s)
+  if (looksLikeHost) return 'https://' + s
+  return 'https://www.google.com/search?q=' + encodeURIComponent(s)
+}
+
+/** Short address-bar / title label for a URL: its host (with path hint), or the
+ *  raw string if it does not parse. */
+function hostLabel(url: string): string {
+  try {
+    return new URL(url).host || url
+  } catch {
+    return url
+  }
 }
 
 function effectiveToolOf(store: CanvasStore, spaceHeld: () => boolean): 'select' | 'hand' {
@@ -297,6 +352,184 @@ export class CanvasView {
       } else {
         host.textContent = t('terminalUnavailable')
       }
+    } else if (node.kind === 'browser') {
+      container.classList.add('is-browser')
+      const browser = document.createElement('div')
+      browser.className = 'cnode-browser'
+
+      // Address / navigation bar.
+      const bar = document.createElement('div')
+      bar.className = 'cnode-browser-bar'
+
+      const backBtn = document.createElement('button')
+      backBtn.className = 'cnode-browser-nav'
+      backBtn.title = t('browserBack')
+      backBtn.innerHTML = icons.arrowLeft
+      backBtn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        this.browserGo(el, node.id, -1)
+      })
+
+      const fwdBtn = document.createElement('button')
+      fwdBtn.className = 'cnode-browser-nav'
+      fwdBtn.title = t('browserForward')
+      fwdBtn.innerHTML = icons.arrowRight
+      fwdBtn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        this.browserGo(el, node.id, +1)
+      })
+
+      const reloadBtn = document.createElement('button')
+      reloadBtn.className = 'cnode-browser-nav'
+      reloadBtn.title = t('browserReload')
+      reloadBtn.innerHTML = icons.reload
+      reloadBtn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        if (el.iframe && el.iframe.src && el.iframe.src !== 'about:blank') {
+          el.iframe.src = el.iframe.src
+        }
+      })
+
+      const urlInput = document.createElement('input')
+      urlInput.className = 'cnode-browser-url'
+      urlInput.type = 'text'
+      urlInput.placeholder = t('browserAddress')
+      urlInput.spellcheck = false
+      // Let the field take the caret/selection without starting a node drag.
+      urlInput.addEventListener('mousedown', (e) => e.stopPropagation())
+      // Only intercept Enter (navigate). Every other key — Cmd/Ctrl+A, +C, +V,
+      // +X, arrows, undo… — must reach the field natively, so we DON'T blanket
+      // stopPropagation (that breaks the webview's clipboard/selection). Canvas
+      // shortcuts are already suppressed while an input is focused (isTyping()).
+      urlInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          e.stopPropagation()
+          this.browserNavigate(el, node.id, urlInput.value)
+          urlInput.blur()
+        }
+      })
+
+      // Zoom controls for the embedded page (CSS `zoom` on the iframe).
+      const zoomOutBtn = document.createElement('button')
+      zoomOutBtn.className = 'cnode-browser-nav'
+      zoomOutBtn.title = t('browserZoomOut')
+      zoomOutBtn.innerHTML = icons.zoomOut
+      zoomOutBtn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        this.browserZoomBy(node.id, -0.1)
+      })
+
+      const zoomLabel = document.createElement('button')
+      zoomLabel.className = 'cnode-browser-zoom'
+      zoomLabel.title = t('browserZoomReset')
+      zoomLabel.textContent = '100%'
+      zoomLabel.addEventListener('click', (e) => {
+        e.stopPropagation()
+        this.store.setNodeBrowserZoom(node.id, 1)
+      })
+
+      const zoomInBtn = document.createElement('button')
+      zoomInBtn.className = 'cnode-browser-nav'
+      zoomInBtn.title = t('browserZoomIn')
+      zoomInBtn.innerHTML = icons.zoomIn
+      zoomInBtn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        this.browserZoomBy(node.id, +0.1)
+      })
+
+      const devToolsBtn = document.createElement('button')
+      devToolsBtn.className = 'cnode-browser-nav'
+      devToolsBtn.title = t('browserDevTools')
+      devToolsBtn.innerHTML = icons.bug
+      devToolsBtn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        this.hooks.onOpenDevTools?.()
+      })
+
+      const extBtn = document.createElement('button')
+      extBtn.className = 'cnode-browser-nav'
+      extBtn.title = t('browserOpenExternal')
+      extBtn.innerHTML = icons.externalLink
+      extBtn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const u = this.store.getState().nodes[node.id]?.url
+        if (u) this.hooks.onOpenExternal?.(normalizeUrl(u))
+      })
+
+      bar.append(
+        backBtn,
+        fwdBtn,
+        reloadBtn,
+        urlInput,
+        zoomOutBtn,
+        zoomLabel,
+        zoomInBtn,
+        devToolsBtn,
+        extBtn,
+      )
+
+      // Viewport: the iframe, with a placeholder shown until a URL is entered.
+      const wrap = document.createElement('div')
+      wrap.className = 'cnode-browser-viewport'
+      const iframe = document.createElement('iframe')
+      iframe.className = 'cnode-browser-frame'
+      iframe.setAttribute('sandbox', BROWSER_SANDBOX)
+      iframe.setAttribute('referrerpolicy', 'no-referrer-when-downgrade')
+      const blank = document.createElement('div')
+      blank.className = 'cnode-browser-blank'
+      blank.textContent = t('browserBlank')
+
+      // Shown when the host reports the site forbids embedding (X-Frame-Options
+      // / CSP frame-ancestors) — otherwise the frame would just be blank.
+      const blocked = document.createElement('div')
+      blocked.className = 'cnode-browser-blocked'
+      const blockedMsg = document.createElement('p')
+      blockedMsg.className = 'cnode-browser-blocked-msg'
+      blockedMsg.textContent = t('browserBlocked')
+      const blockedBtn = document.createElement('button')
+      blockedBtn.className = 'cnode-browser-blocked-open'
+      blockedBtn.textContent = t('browserOpenExternal')
+      blockedBtn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const u = this.store.getState().nodes[node.id]?.url
+        if (u) this.hooks.onOpenExternal?.(normalizeUrl(u))
+      })
+      blocked.append(blockedMsg, blockedBtn)
+
+      // A slim, auto-fading hint shown on every navigation: some sites load then
+      // blank themselves (frame-busting) or fail a bot check — that's invisible
+      // to us cross-origin, so we always surface a one-click escape hatch.
+      const hint = document.createElement('div')
+      hint.className = 'cnode-browser-hint'
+      const hintText = document.createElement('span')
+      hintText.textContent = t('browserHint')
+      const hintBtn = document.createElement('button')
+      hintBtn.className = 'cnode-browser-hint-open'
+      hintBtn.textContent = t('browserOpenExternal')
+      hintBtn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const u = this.store.getState().nodes[node.id]?.url
+        if (u) this.hooks.onOpenExternal?.(normalizeUrl(u))
+      })
+      hint.append(hintText, hintBtn)
+      // Drop the pill once it has faded so its (invisible) button isn't clickable.
+      hint.addEventListener('animationend', () => hint.classList.remove('is-visible'))
+
+      wrap.append(iframe, blank, hint, blocked)
+
+      browser.append(bar, wrap)
+      content.appendChild(browser)
+
+      el.iframe = iframe
+      el.urlInput = urlInput
+      el.browserBackBtn = backBtn
+      el.browserForwardBtn = fwdBtn
+      el.browserHint = hint
+      el.browserZoomLabel = zoomLabel
+      // Seed history from any persisted URL so back/forward have a starting point.
+      el.browserHistory = node.url ? [node.url] : []
+      el.browserIndex = node.url ? 0 : -1
     } else {
       container.classList.add('is-file')
       const file = document.createElement('div')
@@ -447,9 +680,15 @@ export class CanvasView {
         ? t('defaultNote')
         : node.kind === 'terminal'
           ? t('defaultTerminal')
-          : t('defaultFile')
+          : node.kind === 'browser'
+            ? t('defaultBrowser')
+            : t('defaultFile')
     const agentRec = node.kind === 'terminal' ? s.agents[node.id] : undefined
-    el.titleEl.textContent = agentDisplayTitle(agentRec) ?? (node.title || fallbackTitle)
+    // A browser node titles itself after the page host, so the tab reads
+    // "github.com" rather than the generic "Browser".
+    const browserTitle = node.kind === 'browser' && node.url ? hostLabel(node.url) : null
+    el.titleEl.textContent =
+      agentDisplayTitle(agentRec) ?? browserTitle ?? (node.title || fallbackTitle)
     if (node.kind === 'terminal') this.syncAgentChrome(el, agentRec)
 
     if (node.kind === 'note' && el.textarea) {
@@ -461,6 +700,8 @@ export class CanvasView {
       const fp = node.filePath ?? ''
       if (el.filePathEl) el.filePathEl.textContent = fp
       this.syncFileWatch(el, fp)
+    } else if (node.kind === 'browser') {
+      this.syncBrowser(el, node)
     }
 
     // Accent color (left border tint).
@@ -606,6 +847,97 @@ export class CanvasView {
     }
   }
 
+  // ---- Browser -------------------------------------------------------------
+
+  /** Push a new address-bar destination onto a browser node's history and load
+   * it. Forward entries (if the user had gone back) are dropped, matching a
+   * normal browser. */
+  private browserNavigate(el: NodeElements, id: string, raw: string): void {
+    const url = normalizeUrl(raw)
+    if (!url) return
+    const hist = el.browserHistory ?? (el.browserHistory = [])
+    const idx = el.browserIndex ?? -1
+    if (hist[idx] !== url) {
+      hist.splice(idx + 1)
+      hist.push(url)
+      el.browserIndex = hist.length - 1
+    }
+    this.store.setNodeUrl(id, url)
+  }
+
+  /** Step the browser node's history cursor by `delta` (-1 back / +1 forward). */
+  private browserGo(el: NodeElements, id: string, delta: number): void {
+    const hist = el.browserHistory ?? []
+    const idx = (el.browserIndex ?? -1) + delta
+    if (idx < 0 || idx >= hist.length) return
+    el.browserIndex = idx
+    this.store.setNodeUrl(id, hist[idx])
+  }
+
+  /** Reflect a browser node's URL into its iframe, address bar, and nav buttons. */
+  private syncBrowser(el: NodeElements, node: CanvasNodeState): void {
+    const url = node.url ?? ''
+    // (Re)load the iframe only when the URL actually changed — reconcile runs on
+    // every store tick and re-assigning src would otherwise reload constantly.
+    if (url !== el.loadedUrl) {
+      el.loadedUrl = url
+      const target = url ? normalizeUrl(url) : 'about:blank'
+      // Load optimistically so embeddable sites appear with no added latency.
+      if (el.iframe) el.iframe.src = target
+      el.container.classList.toggle('browser-blank', !url)
+      el.container.classList.remove('browser-blocked')
+      // Flash the escape-hatch hint on every real navigation (covers the
+      // undetectable frame-busting / bot-block cases that load then blank).
+      if (url) this.flashBrowserHint(el)
+      // In parallel, ask the host if the site allows framing; if not, swap the
+      // (blank) frame for a clear notice. Guard against a newer navigation.
+      if (url && this.hooks.onCheckEmbeddable) {
+        el.embedCheckUrl = url
+        this.hooks.onCheckEmbeddable(target).then((ok) => {
+          if (el.embedCheckUrl !== url || el.loadedUrl !== url) return
+          if (!ok && el.iframe) el.iframe.src = 'about:blank'
+          el.container.classList.toggle('browser-blocked', !ok)
+        })
+      }
+    }
+    // Keep the address bar in sync unless the user is mid-edit.
+    if (el.urlInput && document.activeElement !== el.urlInput && el.urlInput.value !== url) {
+      el.urlInput.value = url
+    }
+    const hist = el.browserHistory ?? []
+    const idx = el.browserIndex ?? -1
+    if (el.browserBackBtn) el.browserBackBtn.disabled = idx <= 0
+    if (el.browserForwardBtn) el.browserForwardBtn.disabled = idx >= hist.length - 1
+
+    // Embedded-page zoom: scale the iframe and counter-size it (width/height =
+    // 100% / zoom) so the page reflows to fill the viewport at the chosen zoom —
+    // i.e. real browser zoom, not a clipped blow-up. transform-origin is set in
+    // CSS (top-left).
+    const zoom = node.browserZoom ?? 1
+    if (el.iframe) {
+      el.iframe.style.transform = zoom === 1 ? '' : `scale(${zoom})`
+      el.iframe.style.width = `${100 / zoom}%`
+      el.iframe.style.height = `${100 / zoom}%`
+    }
+    if (el.browserZoomLabel) el.browserZoomLabel.textContent = `${Math.round(zoom * 100)}%`
+  }
+
+  /** Step a browser node's embedded-page zoom by `delta`. */
+  private browserZoomBy(id: string, delta: number): void {
+    const current = this.store.getState().nodes[id]?.browserZoom ?? 1
+    this.store.setNodeBrowserZoom(id, current + delta)
+  }
+
+  /** (Re)start the auto-fading "open externally" hint on a browser node. */
+  private flashBrowserHint(el: NodeElements): void {
+    const hint = el.browserHint
+    if (!hint) return
+    hint.classList.remove('is-visible')
+    // Force a reflow so re-adding the class restarts the CSS fade animation.
+    void hint.offsetWidth
+    hint.classList.add('is-visible')
+  }
+
   // ---- Regions -------------------------------------------------------------
 
   private reconcileRegions(s: CanvasData): void {
@@ -720,16 +1052,19 @@ export class CanvasView {
       labelText.textContent = v
     }
     input.addEventListener('blur', commit)
+    // Only intercept Enter / Escape; leave clipboard & selection keys native
+    // (a blanket stopPropagation breaks Cmd/Ctrl+A/C/V in webview inputs).
     input.addEventListener('keydown', (ev) => {
       if (ev.key === 'Enter') {
         ev.preventDefault()
+        ev.stopPropagation()
         input.blur()
       } else if (ev.key === 'Escape') {
         ev.preventDefault()
+        ev.stopPropagation()
         input.value = region.label
         input.blur()
       }
-      ev.stopPropagation()
     })
     input.addEventListener('mousedown', (ev) => ev.stopPropagation())
   }

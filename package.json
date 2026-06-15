@@ -2,7 +2,7 @@
   "name": "jam-desk",
   "displayName": "%jamDesk.displayName%",
   "description": "%jamDesk.description%",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "publisher": "chamchi",
   "repository": {
     "url": "https://github.com/chamchi0809/jam-desk"
@@ -50,6 +50,12 @@
         "title": "%jamDesk.command.addTerminal.title%",
         "category": "Jam Desk",
         "icon": "$(terminal)"
+      },
+      {
+        "command": "jamDesk.addBrowser",
+        "title": "%jamDesk.command.addBrowser.title%",
+        "category": "Jam Desk",
+        "icon": "$(globe)"
       },
       {
         "command": "jamDesk.addFile",
@@ -116,6 +122,10 @@
         },
         {
           "command": "jamDesk.addTerminal",
+          "when": "jamDesk.active"
+        },
+        {
+          "command": "jamDesk.addBrowser",
           "when": "jamDesk.active"
         },
         {
@@ -195,6 +205,7 @@
     "typescript": "^5.6.0"
   },
   "dependencies": {
+    "@xterm/addon-web-links": "^0.11.0",
     "node-pty": "^1.1.0"
   }
 }

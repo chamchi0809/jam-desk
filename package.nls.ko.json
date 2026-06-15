@@ -4,6 +4,7 @@
   "jamDesk.command.open.title": "캔버스 열기",
   "jamDesk.command.addNote.title": "메모 추가",
   "jamDesk.command.addTerminal.title": "터미널 추가",
+  "jamDesk.command.addBrowser.title": "브라우저 추가",
   "jamDesk.command.addFile.title": "파일 카드 추가…",
   "jamDesk.command.addCurrentFile.title": "활성 파일을 캔버스에 추가",
   "jamDesk.command.fitToScreen.title": "캔버스 화면에 맞추기",

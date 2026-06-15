@@ -143,6 +143,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('jamDesk.open', open),
     vscode.commands.registerCommand('jamDesk.addNote', () => relay('addNote')),
     vscode.commands.registerCommand('jamDesk.addTerminal', () => relay('addTerminal')),
+    vscode.commands.registerCommand('jamDesk.addBrowser', () => relay('addBrowser')),
     vscode.commands.registerCommand('jamDesk.addFile', () => relay('addFile')),
     vscode.commands.registerCommand('jamDesk.addCurrentFile', () => relay('addCurrentFile')),
     vscode.commands.registerCommand('jamDesk.fitToScreen', () => relay('fitToScreen')),
@@ -716,6 +717,43 @@ class CanvasPanel {
         this.post({ type: 'clipboard.text', id: msg.id, text })
         break
       }
+      case 'openExternal': {
+        // A clicked terminal link, or a browser node's "open externally" button.
+        // Only http(s) is opened, so a printed `file:` / `vscode:` URI can't be
+        // weaponized into an arbitrary local-resource or command launch.
+        if (typeof msg.url === 'string') {
+          try {
+            const uri = vscode.Uri.parse(msg.url, true)
+            if (uri.scheme === 'http' || uri.scheme === 'https') {
+              await vscode.env.openExternal(uri)
+            }
+          } catch {
+            /* malformed URL — ignore */
+          }
+        }
+        break
+      }
+      case 'openDevTools': {
+        // Opens Chrome DevTools for webviews; the user selects the browser
+        // node's iframe from the frame dropdown to inspect/debug the page.
+        try {
+          await vscode.commands.executeCommand('workbench.action.webview.openDeveloperTools')
+        } catch {
+          /* command unavailable on this VS Code build — ignore */
+        }
+        break
+      }
+      case 'checkEmbeddable': {
+        // A browser node is about to load `url`. Read the response headers from
+        // the host (no CORS limits here) so we can warn — instead of showing a
+        // blank frame — when the site forbids embedding via X-Frame-Options or
+        // CSP frame-ancestors.
+        if (typeof msg.url === 'string') {
+          const embeddable = await checkEmbeddable(msg.url)
+          this.post({ type: 'embeddable', url: msg.url, embeddable })
+        }
+        break
+      }
       case 'export': {
         await this.exportDocument(msg.document)
         break
@@ -985,6 +1023,8 @@ class CanvasPanel {
       `style-src ${webview.cspSource} 'unsafe-inline'`,
       `font-src ${webview.cspSource}`,
       `script-src 'nonce-${nonce}'`,
+      // Browser nodes embed live pages in sandboxed iframes.
+      `frame-src https: http: data:`,
     ].join('; ')
 
     return `<!DOCTYPE html>
@@ -1009,4 +1049,66 @@ function getNonce(): string {
   let text = ''
   for (let i = 0; i < 32; i++) text += chars.charAt(Math.floor(Math.random() * chars.length))
   return text
+}
+
+/** Best-effort check of whether a URL can be embedded in a browser-node iframe.
+ * Reads the response headers (the extension host has no CORS restriction) and
+ * looks for X-Frame-Options or a CSP `frame-ancestors` directive that would make
+ * the webview's `vscode-webview:` origin an invalid framing ancestor. On any
+ * network error we optimistically return `true` and let the iframe try. */
+async function checkEmbeddable(url: string): Promise<boolean> {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return false
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+  // `fetch` is global in the VS Code (Node 18+) extension host.
+  if (typeof fetch !== 'function') return true
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 6000)
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      redirect: 'follow',
+      signal: controller.signal,
+      headers: {
+        // Some servers vary framing headers by UA; present a normal browser UA.
+        'User-Agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        // Mimic an actual iframe navigation: some servers only emit
+        // X-Frame-Options / frame-ancestors when they see these.
+        'Sec-Fetch-Dest': 'iframe',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'cross-site',
+        'Upgrade-Insecure-Requests': '1',
+      },
+    })
+    // We only need the headers — stop downloading the body.
+    try {
+      await res.body?.cancel()
+    } catch {
+      /* ignore */
+    }
+    const xfo = res.headers.get('x-frame-options')
+    if (xfo && /\b(deny|sameorigin)\b/i.test(xfo)) return false
+    const csp = res.headers.get('content-security-policy')
+    if (csp) {
+      const m = /frame-ancestors([^;]*)/i.exec(csp)
+      if (m) {
+        const value = m[1].trim().toLowerCase()
+        // 'none', or any explicit allow-list (which can't include our
+        // vscode-webview origin) blocks us. A wildcard `*` permits framing.
+        if (value && !value.split(/\s+/).includes('*')) return false
+      }
+    }
+    return true
+  } catch {
+    return true
+  } finally {
+    clearTimeout(timer)
+  }
 }

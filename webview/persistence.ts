@@ -40,6 +40,7 @@ type HostMessage =
   | { type: 'terminal.exit'; id: string; exitCode: number }
   | { type: 'terminal.agent'; id: string; agent: 'claude' | 'codex' | null }
   | { type: 'clipboard.text'; id: string; text: string }
+  | { type: 'embeddable'; url: string; embeddable: boolean }
   | { type: 'file.content'; filePath: string; content: string; languageId?: string; truncated?: boolean }
   | { type: 'file.error'; filePath: string; reason: FileError }
 
@@ -86,6 +87,7 @@ export class Persistence {
   private suppressSave = false
   private terminalHandlers = new Map<string, TerminalHandlers>()
   private fileHandlers = new Map<string, Set<(data: FileContentData) => void>>()
+  private embeddableWaiters = new Map<string, Set<(ok: boolean) => void>>()
 
   /** The webview side of the terminal protocol, handed to terminal nodes. */
   readonly terminals: TerminalBridge
@@ -110,6 +112,7 @@ export class Persistence {
       kill: (id) => this.vscode.postMessage({ type: 'terminal.kill', id }),
       copy: (text) => this.vscode.postMessage({ type: 'clipboard.write', text }),
       paste: (id) => this.vscode.postMessage({ type: 'clipboard.read', id }),
+      openExternal: (url) => this.vscode.postMessage({ type: 'openExternal', url }),
       subscribe: (id, handlers) => {
         this.terminalHandlers.set(id, handlers)
         return () => {
@@ -200,6 +203,32 @@ export class Persistence {
     this.vscode.postMessage({ type: 'openFile', filePath })
   }
 
+  /** Open a URL in the system browser (browser node "open externally"). */
+  openExternal(url: string): void {
+    this.vscode.postMessage({ type: 'openExternal', url })
+  }
+
+  /** Open the webview developer tools (browser node debugging). The user can
+   * then pick the embedded page's frame from the DevTools frame selector. */
+  openDevTools(): void {
+    this.vscode.postMessage({ type: 'openDevTools' })
+  }
+
+  /** Ask the host whether `url` allows iframe embedding (resolves once the host
+   * has read the response headers). Resolves `true` on any error so the iframe
+   * still gets a chance to load. */
+  checkEmbeddable(url: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      let set = this.embeddableWaiters.get(url)
+      if (!set) {
+        set = new Set()
+        this.embeddableWaiters.set(url, set)
+      }
+      set.add(resolve)
+      this.vscode.postMessage({ type: 'checkEmbeddable', url })
+    })
+  }
+
   pickFile(): void {
     this.vscode.postMessage({ type: 'pickFile' })
   }
@@ -278,6 +307,14 @@ export class Persistence {
       case 'clipboard.text': {
         // Host read the system clipboard in response to paste(id).
         this.terminalHandlers.get(msg.id)?.onPaste?.(msg.text)
+        break
+      }
+      case 'embeddable': {
+        const set = this.embeddableWaiters.get(msg.url)
+        if (set) {
+          this.embeddableWaiters.delete(msg.url)
+          set.forEach((resolve) => resolve(msg.embeddable))
+        }
         break
       }
       case 'file.content': {

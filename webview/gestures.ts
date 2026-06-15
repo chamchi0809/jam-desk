@@ -119,6 +119,9 @@ export function beginNodeDrag(store: CanvasStore, nodeId: string, e: MouseEvent)
       if (Math.hypot(ev.clientX - startClientX, ev.clientY - startClientY) < DRAG_DEAD_ZONE_PX) return
       moved = true
       store.pushHistory()
+      // Suppress iframe (browser-node) pointer capture so the window-level move
+      // listener keeps firing when the cursor passes over an embedded page.
+      document.body.classList.add('canvas-interacting')
     }
 
     const raw: Point = { x: startOrigin.x + dx, y: startOrigin.y + dy }
@@ -156,6 +159,7 @@ export function beginNodeDrag(store: CanvasStore, nodeId: string, e: MouseEvent)
     window.removeEventListener('mousemove', onMove)
     window.removeEventListener('mouseup', onUp)
     window.removeEventListener('blur', onUp)
+    document.body.classList.remove('canvas-interacting')
     if (rafId) {
       cancelAnimationFrame(rafId)
       rafId = 0
@@ -491,6 +495,7 @@ export function beginRegionDrag(store: CanvasStore, regionId: string, e: MouseEv
       if (Math.hypot(ev.clientX - startClientX, ev.clientY - startClientY) < DRAG_DEAD_ZONE_PX) return
       moved = true
       store.pushHistory()
+      document.body.classList.add('canvas-interacting')
     }
 
     // Multi-drag: translate the whole selection by the incremental delta (no
@@ -533,6 +538,7 @@ export function beginRegionDrag(store: CanvasStore, regionId: string, e: MouseEv
     window.removeEventListener('mousemove', onMove)
     window.removeEventListener('mouseup', onUp)
     window.removeEventListener('blur', onUp)
+    document.body.classList.remove('canvas-interacting')
     if (rafId) {
       cancelAnimationFrame(rafId)
       rafId = 0

@@ -87,6 +87,8 @@ export interface NewNodeProps {
   filePath?: string
   cwd?: string
   color?: string
+  /** Initial URL for a `browser` node. */
+  url?: string
   /** A command auto-run in a new terminal once its shell settles (agent launchers). */
   initialCommand?: string
 }
@@ -109,6 +111,8 @@ function defaultTitle(kind: NodeKind): string {
       return t('defaultNote')
     case 'terminal':
       return t('defaultTerminal')
+    case 'browser':
+      return t('defaultBrowser')
     default:
       return t('defaultFile')
   }
@@ -282,6 +286,7 @@ export class CanvasStore {
       text: props.text,
       filePath: props.filePath,
       cwd: props.cwd,
+      url: props.url,
       color: props.color,
       initialCommand: props.initialCommand,
       origin,
@@ -389,6 +394,27 @@ export class CanvasStore {
       const node = state.nodes[id]
       if (!node) return state
       return { nodes: { ...state.nodes, [id]: { ...node, text } } }
+    })
+  }
+
+  /** Set a `browser` node's current URL. Navigation is not an undo step (the
+   *  iframe keeps its own forward/back), so this does not push history. */
+  setNodeUrl(id: CanvasNodeId, url: string): void {
+    this.set((state) => {
+      const node = state.nodes[id]
+      if (!node || node.url === url) return state
+      return { nodes: { ...state.nodes, [id]: { ...node, url } } }
+    })
+  }
+
+  /** Set a `browser` node's embedded-page zoom (clamped 0.25–3). Not an undo
+   *  step — it's a view preference, like the canvas zoom. */
+  setNodeBrowserZoom(id: CanvasNodeId, zoom: number): void {
+    const clamped = Math.min(3, Math.max(0.25, Math.round(zoom * 100) / 100))
+    this.set((state) => {
+      const node = state.nodes[id]
+      if (!node || node.browserZoom === clamped) return state
+      return { nodes: { ...state.nodes, [id]: { ...node, browserZoom: clamped } } }
     })
   }
 

@@ -46,6 +46,13 @@ body.canvas-interacting {
   cursor: grabbing;
 }
 
+/* While panning / dragging / resizing, an embedded browser iframe must not
+   capture the pointer — otherwise the window-level move listeners stop firing
+   the moment the cursor crosses an embedded page and the gesture sticks. */
+body.canvas-interacting iframe {
+  pointer-events: none;
+}
+
 /* ---- Canvas surface ----------------------------------------------------- */
 
 .canvas {
@@ -412,6 +419,236 @@ body.canvas-interacting {
 
 .cnode-terminal .xterm-viewport::-webkit-scrollbar-thumb:hover {
   background: var(--vscode-scrollbarSlider-hoverBackground, rgba(128, 128, 128, 0.6));
+}
+
+/* ---- Browser ------------------------------------------------------------ */
+
+/* The browser owns its whole content area: address bar + iframe, no outer pad
+   or scroll (the embedded page scrolls itself). */
+.cnode.is-browser .cnode-content {
+  padding: 0;
+  overflow: hidden;
+}
+
+.cnode-browser {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.cnode-browser-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  background: var(--surface-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.cnode-browser-nav {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+}
+
+.cnode-browser-nav svg {
+  width: 16px;
+  height: 16px;
+}
+
+.cnode-browser-nav:hover:not(:disabled) {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
+  color: var(--text-main);
+}
+
+.cnode-browser-nav:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.cnode-browser-zoom {
+  flex: 0 0 auto;
+  height: 24px;
+  min-width: 40px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.cnode-browser-zoom:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
+  color: var(--text-main);
+}
+
+.cnode-browser-url {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--vscode-input-background, var(--surface-1));
+  color: var(--vscode-input-foreground, var(--text-main));
+  font-size: 12px;
+  outline: none;
+}
+
+.cnode-browser-url:focus {
+  border-color: var(--focus-blue);
+}
+
+.cnode-browser-viewport {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: #fff;
+}
+
+.cnode-browser-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+  /* Zoom (set inline in JS) scales from the top-left so the page fills the
+     viewport from its origin rather than drifting. */
+  transform-origin: 0 0;
+}
+
+.cnode-browser-blank,
+.cnode-browser-blocked {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.cnode-browser-blocked-msg {
+  margin: 0;
+  max-width: 32ch;
+  line-height: 1.5;
+}
+
+.cnode-browser-blocked-open {
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 5px 12px;
+  background: var(--vscode-button-background, var(--surface-3));
+  color: var(--vscode-button-foreground, var(--text-main));
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.cnode-browser-blocked-open:hover {
+  background: var(--vscode-button-hoverBackground, var(--surface-3));
+}
+
+/* No URL yet: hide the (about:blank) frame and show the placeholder hint. */
+.cnode.browser-blank .cnode-browser-frame {
+  display: none;
+}
+
+.cnode.browser-blank .cnode-browser-blank {
+  display: flex;
+}
+
+/* Site forbids embedding: hide the (blank) frame, show the notice + escape hatch. */
+.cnode.browser-blocked .cnode-browser-frame {
+  display: none;
+}
+
+.cnode.browser-blocked .cnode-browser-blocked {
+  display: flex;
+}
+
+/* Auto-fading escape-hatch pill, floated over the bottom of the viewport. */
+.cnode-browser-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  display: none;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 24px);
+  padding: 6px 8px 6px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  background: var(--surface-1);
+  color: var(--text-main);
+  font-size: 11px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  /* The pill itself ignores clicks; only its button is interactive, so a faded
+     pill never blocks the page underneath. */
+  pointer-events: none;
+}
+
+.cnode-browser-hint.is-visible {
+  display: flex;
+  animation: browser-hint-fade 7s ease forwards;
+}
+
+.cnode-browser-hint span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cnode-browser-hint-open {
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 11px;
+  padding: 3px 10px;
+  background: var(--vscode-button-background, var(--focus-blue));
+  color: var(--vscode-button-foreground, #fff);
+  font-size: 11px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.cnode-browser-hint-open:hover {
+  background: var(--vscode-button-hoverBackground, var(--focus-blue));
+}
+
+@keyframes browser-hint-fade {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  8% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  82% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 0);
+  }
 }
 
 /* ---- Coding-agent status (Claude Code / Codex) ---------------------------

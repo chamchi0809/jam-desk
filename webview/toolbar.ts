@@ -52,6 +52,9 @@ export class CanvasToolbar {
     const addTerminalBtn = this.button('Terminal', icons.terminal, t('addTerminal'), () => {
       this.store.addNode('terminal')
     })
+    const addBrowserBtn = this.button('Browser', icons.world, t('addBrowserNode'), () => {
+      this.store.addNode('browser')
+    })
     const launchClaudeBtn = this.button('Claude', icons.sparkles, t('launchClaude'), () => {
       this.store.addNode('terminal', { initialCommand: 'claude' })
     })
@@ -121,6 +124,7 @@ export class CanvasToolbar {
       this.sep(),
       addNoteBtn,
       addTerminalBtn,
+      addBrowserBtn,
       launchClaudeBtn,
       launchCodexBtn,
       addFileBtn,

@@ -15,6 +15,7 @@
 import { Terminal } from '@xterm/xterm'
 import type { ITheme } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { WebLinksAddon } from '@xterm/addon-web-links'
 // Bundled as a string via esbuild's text loader and injected once (CSP allows
 // inline <style> through `style-src 'unsafe-inline'`).
 import xtermCss from '@xterm/xterm/css/xterm.css'
@@ -38,6 +39,9 @@ export interface TerminalBridge {
   copy(text: string): void
   /** Request the system clipboard contents be pasted into terminal `id`. */
   paste(id: string): void
+  /** Open a clicked terminal link in the system browser, via the host
+   *  (window.open is blocked inside a VS Code webview). */
+  openExternal(url: string): void
   /** Subscribe to PTY output / exit / paste for this id. Returns an unsubscribe fn. */
   subscribe(
     id: string,
@@ -320,6 +324,18 @@ export class TerminalController {
     })
     this.fit = new FitAddon()
     this.term.loadAddon(this.fit)
+
+    // Make URLs in the terminal clickable. xterm has no built-in linkifier, so
+    // without this addon a printed URL is inert text. The default handler opens
+    // via window.open, which a VS Code webview blocks — route through the host
+    // (vscode.env.openExternal) instead. Hover/click hit-testing flows through
+    // the same MouseService we zoom-correct in patchMouseScaling(), so links
+    // stay clickable at any canvas zoom.
+    this.term.loadAddon(
+      new WebLinksAddon((_event, uri) => {
+        if (!this.disposed) this.bridge.openExternal(uri)
+      }),
+    )
 
     // OSC 0/2 window-title sequences. Always classified (so a state set just
     // before agent detection lands is not lost) and reported cleaned — the

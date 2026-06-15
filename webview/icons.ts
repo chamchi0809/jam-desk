@@ -28,6 +28,12 @@ import file from '@tabler/icons/outline/file.svg'
 import gripVertical from '@tabler/icons/outline/grip-vertical.svg'
 import sparkles from '@tabler/icons/outline/sparkles.svg'
 import brandOpenai from '@tabler/icons/outline/brand-openai.svg'
+import world from '@tabler/icons/outline/world.svg'
+import arrowLeft from '@tabler/icons/outline/arrow-left.svg'
+import arrowRight from '@tabler/icons/outline/arrow-right.svg'
+import reload from '@tabler/icons/outline/reload.svg'
+import externalLink from '@tabler/icons/outline/external-link.svg'
+import bug from '@tabler/icons/outline/bug.svg'
 
 // Split-layout glyphs drawn inline (2 columns / 3 columns / 2×2) so they read
 // unambiguously and stay distinct from the auto-layout grid icon. Tabler style:
@@ -51,8 +57,15 @@ export const icons = {
   // Toolbar — add
   note,
   terminal,
+  world,
   filePlus,
   fileImport,
+  // Browser node chrome
+  arrowLeft,
+  arrowRight,
+  reload,
+  externalLink,
+  bug,
   // Toolbar — agent launchers
   sparkles,
   brandOpenai,
