@@ -621,6 +621,15 @@ export class TerminalController {
     }, INITIAL_COMMAND_SETTLE_MS)
   }
 
+  /** Type a launcher command into this (already running) terminal and submit it. */
+  runCommand(command: string): void {
+    if (this.disposed || !command) return
+    this.cancelInitialCommand() // a click wins over any not-yet-fired auto command
+    this.observeInput(command + '\r')
+    this.bridge.input(this.id, command + '\r')
+    this.focus()
+  }
+
   private cancelInitialCommand(): void {
     if (this.initialCommandTimer != null) {
       clearTimeout(this.initialCommandTimer)

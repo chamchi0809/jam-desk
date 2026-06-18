@@ -37,6 +37,7 @@ import bug from '@tabler/icons/outline/bug.svg'
 import settings from '@tabler/icons/outline/settings.svg'
 import plus from '@tabler/icons/outline/plus.svg'
 import trash from '@tabler/icons/outline/trash.svg'
+import rocket from '@tabler/icons/outline/rocket.svg'
 
 // Split-layout glyphs drawn inline (2 columns / 3 columns / 2×2) so they read
 // unambiguously and stay distinct from the auto-layout grid icon. Tabler style:
@@ -76,6 +77,8 @@ export const icons = {
   // Launcher settings dialog
   plus,
   trash,
+  // Terminal node launcher menu
+  rocket,
   // Toolbar — view
   zoomOut,
   zoomIn,

@@ -31,6 +31,8 @@ import type { TerminalBridge } from './terminalView'
 import type { FileBridge, FileContentData } from './persistence'
 import { highlightInto } from './fileHighlight'
 import { icons } from './icons'
+import { settings } from './settings'
+import type { LauncherButton } from './settings'
 import { t } from './i18n'
 import type { MessageKey } from './i18n'
 
@@ -107,6 +109,13 @@ interface NodeElements {
  * CSS opacity/transform transition. */
 const EXIT_ANIM_MS = 200
 
+/** Built-in launchers always offered in a terminal node's launcher menu,
+ * ahead of the user's custom ones. */
+const PRESET_LAUNCHERS: LauncherButton[] = [
+  { label: 'Claude Code', command: 'claude' },
+  { label: 'Codex', command: 'codex' },
+]
+
 /** Tooltip label key per agent activity (badge hover). */
 const AGENT_ACTIVITY_LABEL: Record<AgentActivity, MessageKey> = {
   idle: 'agentIdle',
@@ -157,6 +166,8 @@ export class CanvasView {
   private nodeEls = new Map<string, NodeElements>()
   private regionEls = new Map<string, RegionElements>()
   private unsubscribe: () => void
+  /** Open terminal-node launcher dropdown, if any. */
+  private launcherMenu: HTMLDivElement | null = null
 
   /** Provided by main: reports whether Space is currently held (hand override). */
   spaceHeld: () => boolean = () => false
@@ -371,6 +382,17 @@ export class CanvasView {
           node.initialCommand,
         )
         el.terminal = ctrl
+        // Launcher dropdown — runs a configured command in THIS terminal. The
+        // menu reads settings live on open, so edits need no per-node rebuild.
+        const launcherBtn = document.createElement('button')
+        launcherBtn.className = 'cnode-btn'
+        launcherBtn.title = t('runLauncher')
+        launcherBtn.innerHTML = icons.rocket
+        launcherBtn.addEventListener('click', (e) => {
+          e.stopPropagation()
+          this.openLauncherMenu(launcherBtn, ctrl)
+        })
+        actions.insertBefore(launcherBtn, pinBtn)
         // Mount after this element is attached + sized so the first fit() is correct.
         requestAnimationFrame(() => ctrl.mount(host))
       } else {
@@ -1111,7 +1133,64 @@ export class CanvasView {
     c.classList.toggle('is-drop-target', dropTarget)
   }
 
+  /** Open the launcher dropdown for a terminal node; picking an item runs that
+   * command in this terminal. Reads launchers from settings on each open. */
+  private openLauncherMenu(anchor: HTMLElement, ctrl: TerminalController): void {
+    this.closeLauncherMenu()
+    const items = [
+      ...PRESET_LAUNCHERS,
+      ...settings.customLaunchersGlobal,
+      ...settings.customLaunchersWorkspace,
+    ]
+    const menu = document.createElement('div')
+    menu.className = 'context-menu'
+    for (const l of items) {
+      const row = document.createElement('button')
+      row.className = 'context-menu-item'
+      row.textContent = l.label
+      row.title = l.command
+      row.addEventListener('click', (e) => {
+        e.stopPropagation()
+        ctrl.runCommand(l.command)
+        this.closeLauncherMenu()
+      })
+      menu.appendChild(row)
+    }
+    document.body.appendChild(menu)
+
+    // Anchor below the button, right-aligned, clamped to the viewport.
+    const r = anchor.getBoundingClientRect()
+    const left = Math.max(4, Math.min(r.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - 4))
+    const top = Math.min(r.bottom + 4, window.innerHeight - menu.offsetHeight - 4)
+    menu.style.left = `${left}px`
+    menu.style.top = `${Math.max(4, top)}px`
+    this.launcherMenu = menu
+
+    // Defer so the opening click doesn't immediately close it.
+    setTimeout(() => {
+      window.addEventListener('mousedown', this.onLauncherOutside, true)
+      window.addEventListener('keydown', this.onLauncherKey, true)
+    }, 0)
+  }
+
+  private onLauncherOutside = (e: MouseEvent): void => {
+    if (this.launcherMenu && !this.launcherMenu.contains(e.target as Node)) this.closeLauncherMenu()
+  }
+
+  private onLauncherKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape') this.closeLauncherMenu()
+  }
+
+  private closeLauncherMenu(): void {
+    if (!this.launcherMenu) return
+    window.removeEventListener('mousedown', this.onLauncherOutside, true)
+    window.removeEventListener('keydown', this.onLauncherKey, true)
+    this.launcherMenu.remove()
+    this.launcherMenu = null
+  }
+
   destroy(): void {
+    this.closeLauncherMenu()
     this.unsubscribe()
     for (const el of this.nodeEls.values()) {
       this.clearNodeTimers(el)
