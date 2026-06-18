@@ -307,6 +307,7 @@ export class CanvasStore {
   }
 
   removeNode(id: CanvasNodeId): void {
+    if (this.data.nodes[id]?.isPinned) return // ponytail: pinned panels can't be deleted
     if (this.data.nodes[id]) this.pushHistory()
     this.set((state) => {
       const node = state.nodes[id]
@@ -909,6 +910,9 @@ export class CanvasStore {
     }
 
     const nodeIdsToRemove = new Set(state.selectedNodeIds)
+    for (const id of nodeIdsToRemove) {
+      if (state.nodes[id]?.isPinned) nodeIdsToRemove.delete(id) // ponytail: keep pinned panels
+    }
     if (!includeRegionContents && state.selectedRegionIds.size > 0) {
       for (const node of Object.values(state.nodes)) {
         if (node.regionId && state.selectedRegionIds.has(node.regionId)) {
@@ -919,7 +923,7 @@ export class CanvasStore {
     for (const regionId of state.selectedRegionIds) {
       if (includeRegionContents) {
         for (const node of Object.values(state.nodes)) {
-          if (node.regionId === regionId) nodeIdsToRemove.add(node.id)
+          if (node.regionId === regionId && !node.isPinned) nodeIdsToRemove.add(node.id)
         }
       }
     }
