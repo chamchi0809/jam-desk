@@ -302,15 +302,39 @@ export class CanvasView {
       ta.className = 'cnode-note'
       ta.placeholder = t('notePlaceholder')
       ta.spellcheck = false
+      const selectAndFocusNote = () => {
+        const state = this.store.getState()
+        if (
+          state.selectedNodeIds.size !== 1 ||
+          !state.selectedNodeIds.has(node.id) ||
+          state.selectedRegionIds.size > 0
+        ) {
+          this.store.clearSelection()
+          this.store.selectNodes([node.id])
+        }
+        this.store.focusNode(node.id)
+      }
       ta.addEventListener('focus', () => {
+        selectAndFocusNote()
         // One undo step per editing session.
         this.store.pushHistory()
       })
       ta.addEventListener('input', () => {
         this.store.setNodeText(node.id, ta.value)
       })
-      // Let text selection / caret work without starting a node drag.
-      ta.addEventListener('mousedown', (e) => e.stopPropagation())
+      // 메모 본문을 클릭해도 카드 선택 상태가 해당 메모로 이동해야 한다.
+      ta.addEventListener('pointerdown', (e) => {
+        if (e.button === 0 && effectiveToolOf(this.store, this.spaceHeld) === 'select') {
+          selectAndFocusNote()
+        }
+        e.stopPropagation()
+      })
+      ta.addEventListener('mousedown', (e) => {
+        if (e.button === 0 && effectiveToolOf(this.store, this.spaceHeld) === 'select') {
+          selectAndFocusNote()
+        }
+        e.stopPropagation()
+      })
       content.appendChild(ta)
       el.textarea = ta
     } else if (node.kind === 'terminal') {
