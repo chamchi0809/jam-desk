@@ -16,5 +16,8 @@
   "jamDesk.config.gridStyle.description": "캔버스의 배경 그리드 스타일입니다.",
   "jamDesk.config.snapToGrid.description": "이동하거나 크기를 조절할 때 노드를 그리드(및 이웃 가장자리)에 스냅합니다. Alt 키를 누르면 무시합니다.",
   "jamDesk.config.zoomSpeed.description": "휠 / 트랙패드 확대/축소 속도 배율입니다.",
-  "jamDesk.config.showMinimap.description": "캔버스 모서리에 미니맵 개요를 표시합니다."
+  "jamDesk.config.showMinimap.description": "캔버스 모서리에 미니맵 개요를 표시합니다.",
+  "jamDesk.config.customLaunchers.description": "터미널을 열고 명령을 실행하는 사용자 지정 툴바 버튼입니다. 각 항목은 { \"label\": \"...\", \"command\": \"...\" } 형식입니다.",
+  "jamDesk.config.customLaunchers.label.description": "툴바에 표시되는 버튼 텍스트입니다.",
+  "jamDesk.config.customLaunchers.command.description": "새 터미널에 입력되는 명령입니다 (예: \"claude --resume\")."
 }

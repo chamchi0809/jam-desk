@@ -183,6 +183,28 @@
           "type": "boolean",
           "default": true,
           "description": "%jamDesk.config.showMinimap.description%"
+        },
+        "jamDesk.customLaunchers": {
+          "type": "array",
+          "default": [],
+          "description": "%jamDesk.config.customLaunchers.description%",
+          "items": {
+            "type": "object",
+            "required": [
+              "label",
+              "command"
+            ],
+            "properties": {
+              "label": {
+                "type": "string",
+                "description": "%jamDesk.config.customLaunchers.label.description%"
+              },
+              "command": {
+                "type": "string",
+                "description": "%jamDesk.config.customLaunchers.command.description%"
+              }
+            }
+          }
         }
       }
     }

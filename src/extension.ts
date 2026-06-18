@@ -166,8 +166,13 @@ export function deactivate(): void {
 // Settings
 // -----------------------------------------------------------------------------
 
+type Launcher = { label: string; command: string }
+
 function settingsMessage() {
   const cfg = vscode.workspace.getConfiguration('jamDesk')
+  // Read each scope separately (array settings don't merge — workspace would
+  // otherwise fully mask global) so the toolbar can show both lists.
+  const launchers = cfg.inspect<Launcher[]>('customLaunchers')
   return {
     type: 'settings' as const,
     settings: {
@@ -175,6 +180,8 @@ function settingsMessage() {
       snapToGrid: cfg.get<boolean>('snapToGrid', true),
       zoomSpeed: cfg.get<number>('zoomSpeed', 1),
       showMinimap: cfg.get<boolean>('showMinimap', true),
+      customLaunchersGlobal: launchers?.globalValue ?? [],
+      customLaunchersWorkspace: launchers?.workspaceValue ?? [],
     },
   }
 }
@@ -760,6 +767,26 @@ class CanvasPanel {
       }
       case 'requestImport': {
         await this.importDocument()
+        break
+      }
+      case 'setCustomLaunchers': {
+        // Webview's launcher-settings dialog → write each scope to its config
+        // target. The onDidChangeConfiguration listener echoes the new settings
+        // back, which rebuilds the toolbar buttons.
+        const cfg = vscode.workspace.getConfiguration('jamDesk')
+        const sanitize = (v: unknown): Launcher[] =>
+          (Array.isArray(v) ? v : [])
+            .filter((l: unknown): l is Launcher => {
+              const o = l as { label?: unknown; command?: unknown }
+              return !!o && typeof o.label === 'string' && typeof o.command === 'string'
+            })
+            .map((l) => ({ label: l.label, command: l.command }))
+        await cfg.update('customLaunchers', sanitize(msg.global), vscode.ConfigurationTarget.Global)
+        // Workspace target requires an open folder/workspace; skip otherwise so
+        // the global write still lands.
+        if (vscode.workspace.workspaceFolders?.length) {
+          await cfg.update('customLaunchers', sanitize(msg.workspace), vscode.ConfigurationTarget.Workspace)
+        }
         break
       }
       case 'terminal.create': {

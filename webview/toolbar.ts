@@ -17,6 +17,8 @@ export interface ToolbarHooks {
   onAddCurrentFile?: () => void
   /** Minimap visibility toggled. */
   onToggleMinimap?: (visible: boolean) => void
+  /** Gear button next to the launchers → open the launcher settings dialog. */
+  onCustomizeLaunchers?: () => void
 }
 
 export class CanvasToolbar {
@@ -28,6 +30,7 @@ export class CanvasToolbar {
   private undoBtn: HTMLButtonElement
   private redoBtn: HTMLButtonElement
   private minimapBtn: HTMLButtonElement
+  private launchersGroup!: HTMLSpanElement
 
   constructor(
     parent: HTMLElement,
@@ -60,6 +63,13 @@ export class CanvasToolbar {
     })
     const launchCodexBtn = this.button('Codex', icons.brandOpenai, t('launchCodex'), () => {
       this.store.addNode('terminal', { initialCommand: 'codex' })
+    })
+    // User-defined launchers (jamDesk.customLaunchers) live in their own group so
+    // a settings change can rebuild just these without touching the rest.
+    this.launchersGroup = document.createElement('span')
+    this.launchersGroup.className = 'toolbar-launchers'
+    const customizeBtn = this.button('Customize', icons.settings, t('customizeLaunchers'), () => {
+      this.hooks.onCustomizeLaunchers?.()
     })
     const addFileBtn = this.button('File', icons.filePlus, t('addFileNode'), () => {
       this.hooks.onAddFile?.()
@@ -123,12 +133,15 @@ export class CanvasToolbar {
       this.handBtn,
       this.sep(),
       addNoteBtn,
-      addTerminalBtn,
       addBrowserBtn,
-      launchClaudeBtn,
-      launchCodexBtn,
       addFileBtn,
       addCurrentBtn,
+      this.sep(),
+      addTerminalBtn,
+      launchClaudeBtn,
+      launchCodexBtn,
+      this.launchersGroup,
+      customizeBtn,
       this.sep(),
       zoomOut,
       this.zoomLabel,
@@ -151,7 +164,19 @@ export class CanvasToolbar {
 
     this.sync(store.getState())
     this.syncMinimapBtn()
+    this.refreshLaunchers()
     this.unsubscribe = store.subscribe((next) => this.sync(next))
+  }
+
+  /** Rebuild the user-defined launcher buttons from settings.customLaunchers. */
+  refreshLaunchers(): void {
+    this.launchersGroup.replaceChildren()
+    for (const l of [...settings.customLaunchersGlobal, ...settings.customLaunchersWorkspace]) {
+      const btn = this.button('Launcher', l.label, l.command, () => {
+        this.store.addNode('terminal', { initialCommand: l.command })
+      })
+      this.launchersGroup.appendChild(btn)
+    }
   }
 
   private button(

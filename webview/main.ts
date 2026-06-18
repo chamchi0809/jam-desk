@@ -15,6 +15,7 @@ import { CanvasToolbar } from './toolbar'
 import { CanvasInteraction } from './interaction'
 import type { ContextMenuRequest } from './interaction'
 import { Persistence } from './persistence'
+import { LauncherSettingsDialog } from './launcherSettings'
 import { settings } from './settings'
 import { t } from './i18n'
 import { viewToCanvas } from './coordinates'
@@ -164,6 +165,7 @@ const persistence = new Persistence(store, {
   onSettingsChanged: () => {
     grid.render()
     minimap.setVisible(settings.showMinimap)
+    toolbar.refreshLaunchers()
   },
   onDocumentLoaded: () => {
     minimap.setVisible(settings.showMinimap)
@@ -182,12 +184,17 @@ const view = new CanvasView(world, store, {
 const minimap = new CanvasMinimap(canvasEl, store)
 minimap.setVisible(settings.showMinimap)
 
+const launcherSettings = new LauncherSettingsDialog((scopes) =>
+  persistence.setCustomLaunchers(scopes),
+)
+
 const toolbar = new CanvasToolbar(canvasEl, store, {
   onAddFile: () => persistence.pickFile(),
   onAddCurrentFile: () => persistence.addCurrentFile(),
   onToggleMinimap: (visible) => minimap.setVisible(visible),
+  onCustomizeLaunchers: () =>
+    launcherSettings.open(settings.customLaunchersGlobal, settings.customLaunchersWorkspace),
 })
-void toolbar
 
 const contextMenu = new ContextMenu(store, persistence)
 

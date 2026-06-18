@@ -28,6 +28,8 @@ interface SettingsPayload {
   snapToGrid?: boolean
   zoomSpeed?: number
   showMinimap?: boolean
+  customLaunchersGlobal?: { label: string; command: string }[]
+  customLaunchersWorkspace?: { label: string; command: string }[]
 }
 
 type HostMessage =
@@ -249,6 +251,14 @@ export class Persistence {
 
   requestImport(): void {
     this.vscode.postMessage({ type: 'requestImport' })
+  }
+
+  /** Persist the custom launcher buttons per scope; host writes config and echoes back. */
+  setCustomLaunchers(scopes: {
+    global: { label: string; command: string }[]
+    workspace: { label: string; command: string }[]
+  }): void {
+    this.vscode.postMessage({ type: 'setCustomLaunchers', ...scopes })
   }
 
   // ---- Inbound (host → webview) --------------------------------------------

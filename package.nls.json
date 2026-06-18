@@ -16,5 +16,8 @@
   "jamDesk.config.gridStyle.description": "Background grid style for the canvas.",
   "jamDesk.config.snapToGrid.description": "Snap nodes to the grid (and to neighbor edges) when moving or resizing. Hold Alt to bypass.",
   "jamDesk.config.zoomSpeed.description": "Multiplier for wheel / trackpad zoom speed.",
-  "jamDesk.config.showMinimap.description": "Show the minimap overview in the corner of the canvas."
+  "jamDesk.config.showMinimap.description": "Show the minimap overview in the corner of the canvas.",
+  "jamDesk.config.customLaunchers.description": "Custom toolbar buttons that open a terminal and run a command. Each entry is { \"label\": \"...\", \"command\": \"...\" }.",
+  "jamDesk.config.customLaunchers.label.description": "Button text shown in the toolbar.",
+  "jamDesk.config.customLaunchers.command.description": "Command typed into the new terminal (e.g. \"claude --resume\")."
 }

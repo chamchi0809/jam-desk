@@ -34,6 +34,9 @@ import arrowRight from '@tabler/icons/outline/arrow-right.svg'
 import reload from '@tabler/icons/outline/reload.svg'
 import externalLink from '@tabler/icons/outline/external-link.svg'
 import bug from '@tabler/icons/outline/bug.svg'
+import settings from '@tabler/icons/outline/settings.svg'
+import plus from '@tabler/icons/outline/plus.svg'
+import trash from '@tabler/icons/outline/trash.svg'
 
 // Split-layout glyphs drawn inline (2 columns / 3 columns / 2×2) so they read
 // unambiguously and stay distinct from the auto-layout grid icon. Tabler style:
@@ -69,6 +72,10 @@ export const icons = {
   // Toolbar — agent launchers
   sparkles,
   brandOpenai,
+  settings,
+  // Launcher settings dialog
+  plus,
+  trash,
   // Toolbar — view
   zoomOut,
   zoomIn,
