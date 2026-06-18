@@ -395,8 +395,7 @@ window.addEventListener('keydown', (e) => {
     case 'H':
       store.setTool('hand')
       break
-    case 'Delete':
-    case 'Backspace': {
+    case 'Delete': {
       e.preventDefault()
       const s = store.getState()
       if (s.selectedNodeIds.size > 0 || s.selectedRegionIds.size > 0) {
