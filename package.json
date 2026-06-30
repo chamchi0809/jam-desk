@@ -184,6 +184,11 @@
           "default": true,
           "description": "%jamDesk.config.showMinimap.description%"
         },
+        "jamDesk.agentNotifications": {
+          "type": "boolean",
+          "default": true,
+          "description": "%jamDesk.config.agentNotifications.description%"
+        },
         "jamDesk.customLaunchers": {
           "type": "array",
           "default": [],

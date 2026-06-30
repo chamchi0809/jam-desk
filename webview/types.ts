@@ -77,7 +77,7 @@ export function isMaximized(node: CanvasNodeState): boolean {
 // ---- Coding-agent status (terminal nodes) ------------------------------------
 
 /** Coding-agent CLIs recognized inside a terminal's PTY process tree. */
-export type AgentKind = 'claude' | 'codex'
+export type AgentKind = 'claude' | 'codex' | 'opencode' | 'pi'
 
 /** What the agent is doing, derived from its TUI screen contents. */
 export type AgentActivity = 'idle' | 'working' | 'waiting'
@@ -104,6 +104,11 @@ export interface TerminalAgentState {
 //  - Codex:        "⠋ <project>" (10 braille frames, 100ms) while working,
 //    "[ ! ] Action Required | <project>" (blinking "[ . ]") while blocked on
 //    user input, and the bare "<project>" when idle.
+//  - opencode:     does NOT title-code state (its TUI footer uses a "blocks"
+//    spinner, not braille) — relies entirely on the screen-scan fallback.
+//  - Pi:           only title-codes when the user enables its `titlebar-spinner`
+//    extension ("⠋ π - <session> - <cwd>", caught by TITLE_WORKING_RE); the
+//    default build relies on the screen-scan ("(<key> to cancel)" hint).
 
 /** Leading braille spinner frame — either agent is actively working. */
 const TITLE_WORKING_RE = /^[⠀-⣿]\s/
@@ -131,6 +136,8 @@ export function cleanAgentTitle(raw: string): string {
 export const AGENT_DISPLAY_NAMES: Record<AgentKind, string> = {
   claude: 'Claude Code',
   codex: 'Codex',
+  opencode: 'opencode',
+  pi: 'Pi',
 }
 
 /** Per-activity accent color, RunCat365 runner sprite (media/runners/), and the

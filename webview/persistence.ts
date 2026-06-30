@@ -8,8 +8,8 @@
 // =============================================================================
 
 import type { CanvasStore } from './store'
-import type { CanvasDocument, Point } from './types'
-import { agentActivityEmojiSummary } from './types'
+import type { AgentKind, CanvasDocument, Point, TerminalAgentState } from './types'
+import { agentActivityEmojiSummary, agentDisplayTitle } from './types'
 import { applySettings } from './settings'
 import type { GridStyle } from './settings'
 import type { TerminalBridge } from './terminalView'
@@ -40,7 +40,7 @@ type HostMessage =
   | { type: 'command'; command: string }
   | { type: 'terminal.data'; id: string; data: string }
   | { type: 'terminal.exit'; id: string; exitCode: number }
-  | { type: 'terminal.agent'; id: string; agent: 'claude' | 'codex' | null }
+  | { type: 'terminal.agent'; id: string; agent: AgentKind | null }
   | { type: 'clipboard.text'; id: string; text: string }
   | { type: 'embeddable'; url: string; embeddable: boolean }
   | { type: 'file.content'; filePath: string; content: string; languageId?: string; truncated?: boolean }
@@ -164,7 +164,10 @@ export class Persistence {
     // a row of emoji. `agents` is an immutable slice, so it only differs on a
     // real status change (detection, activity, or an agent vanishing).
     this.store.subscribe((next, prev) => {
-      if (next.agents !== prev.agents) this.postAgentSummary()
+      if (next.agents !== prev.agents) {
+        this.postAgentSummary()
+        this.postAgentNotifications(next.agents, prev.agents)
+      }
     })
   }
 
@@ -190,6 +193,29 @@ export class Persistence {
       type: 'agentSummary',
       emoji: agentActivityEmojiSummary(this.store.getState().agents),
     })
+  }
+
+  /** Fire a desktop notification when a terminal's agent transitions to a state
+   * worth interrupting the user for: finishing a task (working → idle) or
+   * starting to wait on their input. The host turns this into an OS banner and
+   * adds the project name; we supply the terminal's panel title. */
+  private postAgentNotifications(
+    next: Record<string, TerminalAgentState>,
+    prev: Record<string, TerminalAgentState>,
+  ): void {
+    for (const [id, rec] of Object.entries(next)) {
+      if (!rec.agent) continue
+      const before = prev[id]?.activity
+      if (rec.activity === before) continue
+      const kind =
+        rec.activity === 'waiting'
+          ? 'waiting'
+          : before === 'working' && rec.activity === 'idle'
+            ? 'complete'
+            : null
+      if (!kind) continue
+      this.vscode.postMessage({ type: 'notify', kind, title: agentDisplayTitle(rec) ?? '' })
+    }
   }
 
   /** Flush any pending save immediately (e.g. on explicit export). */

@@ -168,6 +168,26 @@ export function deactivate(): void {
 
 type Launcher = { label: string; command: string }
 
+/** Best-effort OS desktop notification. Native banners on macOS (osascript)
+ * and Linux (notify-send); other platforms degrade to the in-editor toast.
+ * ponytail: no win32 native path — wire a PowerShell toast here if it's asked
+ * for. Failures (e.g. notify-send not installed) are swallowed. */
+function notifyDesktop(title: string, subtitle: string, body: string): void {
+  switch (os.platform()) {
+    case 'darwin': {
+      const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+      const script = `display notification "${esc(body)}" with title "${esc(title)}" subtitle "${esc(subtitle)}"`
+      execFile('osascript', ['-e', script], () => {})
+      break
+    }
+    case 'linux':
+      execFile('notify-send', [title, `${subtitle} — ${body}`], () => {})
+      break
+    default:
+      void vscode.window.showInformationMessage(`${title} — ${subtitle}: ${body}`)
+  }
+}
+
 function settingsMessage() {
   const cfg = vscode.workspace.getConfiguration('jamDesk')
   // Read each scope separately (array settings don't merge — workspace would
@@ -217,7 +237,7 @@ interface TerminalProc {
 
 const AGENT_POLL_MS = 2000
 
-type AgentKind = 'claude' | 'codex'
+type AgentKind = 'claude' | 'codex' | 'opencode' | 'pi'
 
 /** Classify a process command line as an agent CLI. Only the leading tokens are
  * inspected ("claude --resume", "node …/claude-code/cli.js", "bun x codex") so
@@ -230,6 +250,12 @@ function classifyAgentCommand(command: string): AgentKind | null {
     if (stem === 'claude' || tok.includes('claude-code')) return 'claude'
     if (stem === 'codex' || stem.startsWith('codex-') || tok.includes('@openai/codex')) {
       return 'codex'
+    }
+    if (stem === 'opencode' || tok.includes('opencode-ai')) return 'opencode'
+    // ponytail: bare "pi" stem is a narrow match — pi has no scoped-package
+    // wrapper to lean on. Widen if it collides with another local `pi` binary.
+    if (stem === 'pi' || tok.includes('@earendil-works/pi') || tok.includes('@mariozechner/pi')) {
+      return 'pi'
     }
   }
   return null
@@ -659,6 +685,22 @@ class CanvasPanel {
     void this.panel.webview.postMessage(message)
   }
 
+  /** Surface an agent state change (task done / waiting on input) as an OS
+   * desktop banner: project name as the title, the terminal's panel title as
+   * the subtitle. Skipped while the user is already looking at this panel (the
+   * canvas shows its own status badges) and when notifications are turned off. */
+  private notifyAgent(kind: 'complete' | 'waiting', terminalTitle: string): void {
+    const cfg = vscode.workspace.getConfiguration('jamDesk')
+    if (!cfg.get<boolean>('agentNotifications', true)) return
+    if (vscode.window.state.focused && this.panel.active) return
+    const project = vscode.workspace.workspaceFolders?.[0]?.name ?? PANEL_TITLE
+    const status =
+      kind === 'complete'
+        ? vscode.l10n.t('Agent finished its task')
+        : vscode.l10n.t('Agent is waiting for your input')
+    notifyDesktop(project, terminalTitle || PANEL_TITLE, status)
+  }
+
   dispose(): void {
     vscode.commands.executeCommand('setContext', 'jamDesk.active', false)
     this.terminals.disposeAll()
@@ -689,6 +731,12 @@ class CanvasPanel {
         // Append it to the tab title (empty string → just the base title).
         const emoji = typeof msg.emoji === 'string' ? msg.emoji : ''
         this.panel.title = emoji ? `${PANEL_TITLE} ${emoji}` : PANEL_TITLE
+        break
+      }
+      case 'notify': {
+        if (msg.kind === 'complete' || msg.kind === 'waiting') {
+          this.notifyAgent(msg.kind, typeof msg.title === 'string' ? msg.title : '')
+        }
         break
       }
       case 'openFile': {

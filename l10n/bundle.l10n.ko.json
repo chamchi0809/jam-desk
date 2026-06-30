@@ -6,5 +6,7 @@
   "Export": "내보내기",
   "Jam Desk: Canvas exported.": "Jam Desk: 캔버스를 내보냈습니다.",
   "Import": "가져오기",
-  "Jam Desk: Import failed — {0}": "Jam Desk: 가져오기 실패 — {0}"
+  "Jam Desk: Import failed — {0}": "Jam Desk: 가져오기 실패 — {0}",
+  "Agent finished its task": "에이전트가 작업을 완료했습니다",
+  "Agent is waiting for your input": "에이전트가 입력을 기다리고 있습니다"
 }

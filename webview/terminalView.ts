@@ -118,7 +118,11 @@ interface XtermMouseService {
 // the title still says "working", and the user being asked something is the
 // state that matters.
 
-const AGENT_WORKING_RE = /esc to interrupt/i
+// Working footer hint: a cancel/interrupt key hint. Claude & Codex say "esc to
+// interrupt"; Pi says "(<key> to cancel)" (status-indicator.ts). opencode only
+// shows a bare "esc" beside a block spinner, so its working state is NOT caught
+// here — see the ceiling note on AGENT_WAITING_RES.
+const AGENT_WORKING_RE = /(?:\besc\b|\bescape\b|ctrl[-+ ]?c|⌃c|⎋)[^\n]{0,16}\bto (?:interrupt|cancel|stop)\b/i
 
 const AGENT_WAITING_RES: RegExp[] = [
   /❯\s*\d+\./, // Claude Code option selector ("❯ 1. Yes")
@@ -129,6 +133,8 @@ const AGENT_WAITING_RES: RegExp[] = [
   /press enter to continue/i,
   /waiting for (your )?(input|approval|confirmation)/i,
   /allow command\?/i,
+  /\ballow once\b/i, // opencode permission prompt ("Allow once / Always / Reject")
+  /\besc to reject\b/i, // opencode permission footer hint
 ]
 
 /** OSC 9 notification payloads that mean the agent is blocked on user input
@@ -144,6 +150,9 @@ const INITIAL_COMMAND_SETTLE_MS = 500
 
 const CODEX_WAITING_TITLE_RE = /^\[\s*[!.]\s*\]\s*action required/i
 const CLAUDE_IDLE_TITLE_RE = /^[\u2733\u2736\u273b\u273d]\s/
+/** Pi titlebar-spinner extension format: an optional braille spinner, then
+ *  "\u03c0 -" / "\u03c0 \u2013". The \u03c0 is the distinctive marker. */
+const PI_TITLE_RE = /^[\u2800-\u28ff]?\s*\u03c0\s*[-\u2013\u2014]/
 
 const INPUT_PREFIX_COMMANDS = new Set(['command', 'env', 'rlwrap', 'sudo', 'winpty'])
 const DIRECT_EXEC_COMMANDS = new Set(['bunx', 'npx', 'uvx'])
@@ -157,6 +166,9 @@ const PACKAGE_EXEC_COMMANDS = new Map([
 const OUTPUT_AGENT_PROBES: Array<{ agent: AgentKind; re: RegExp }> = [
   { agent: 'claude', re: /\bClaude Code\b|claude-code/i },
   { agent: 'codex', re: /\bOpenAI Codex\b|esc to interrupt|Action Required/i },
+  // ponytail: no output probe for opencode/pi — "opencode"/"pi" are too generic
+  // to grep from raw output without sticky false positives. Both are caught by
+  // the host process scan and the typed launch command (and Pi by its title).
 ]
 
 function leadingCommandTokens(command: string, limit: number): string[] {
@@ -182,6 +194,10 @@ function classifyAgentToken(token: string | undefined): AgentKind | null {
   if (stem === 'claude' || clean.includes('claude-code')) return 'claude'
   if (stem === 'codex' || stem.startsWith('codex-') || clean.includes('@openai/codex')) {
     return 'codex'
+  }
+  if (stem === 'opencode' || clean.includes('opencode-ai')) return 'opencode'
+  if (stem === 'pi' || clean.includes('@earendil-works/pi') || clean.includes('@mariozechner/pi')) {
+    return 'pi'
   }
   return null
 }
@@ -222,6 +238,8 @@ function inferAgentFromTitle(title: string): AgentKind | null {
   const s = title.trimStart()
   if (CODEX_WAITING_TITLE_RE.test(s)) return 'codex'
   if (CLAUDE_IDLE_TITLE_RE.test(s)) return 'claude'
+  // Pi's titlebar-spinner extension: "⠋ π - <session> - <cwd>" / "π - <cwd>".
+  if (PI_TITLE_RE.test(s)) return 'pi'
   return null
 }
 
